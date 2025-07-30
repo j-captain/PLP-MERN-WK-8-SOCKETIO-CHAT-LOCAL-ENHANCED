@@ -1,0 +1,4 @@
+# Node modules (all levels)
+node_modules/
+server/node_modules/
+client/node_modules/
