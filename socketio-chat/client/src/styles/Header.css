@@ -1,0 +1,79 @@
+.header {
+  width: 100%;
+  background: linear-gradient(to right, #0e7f54ff, #8b5cf6);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  border-radius: 20px 20px 0 0;
+}
+
+.header-container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.header-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.app-title {
+  font-size: 1.8rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0;
+  color: #ffffff;
+}
+
+.header-emoji {
+  animation: pulse 2s infinite;
+}
+
+.app-name {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.welcome-message {
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  color: #e0e7ff;
+  background-color: rgba(79, 70, 229, 0.3);
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+}
+
+.username {
+  font-weight: 500;
+}
+
+.logout-button {
+  margin-left: 0.5rem;
+  font-size: 0.75rem;
+  background-color: rgba(255, 255, 255, 0.9);
+  color: #4f46e5;
+  padding: 0.25rem 0.5rem;
+  border-radius: 9999px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.logout-button:hover {
+  background-color: white;
+  transform: translateY(-1px);
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
