@@ -1,4 +1,4 @@
-# MWANGI JOSPHAT KARANJA  WK 8 FINAL MERN Stack Capstone Project - Enhanced Real-Time Chat Application with Socket.io
+# MWANGI JOSPHAT KARANJA  WK 8 MERN Stack Capstone Project - Enhanced Real-Time Chat Application with Socket.io
 
 A full-stack real-time chat application built with React.js, Node.js, Express.js, MongoDB, and Socket.io. This application features real-time messaging, user presence indicators, typing notifications, and more.
 
