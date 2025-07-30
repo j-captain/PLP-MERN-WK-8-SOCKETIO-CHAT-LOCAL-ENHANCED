@@ -38,119 +38,6 @@ const FILE_UPLOAD_ART = `
  |_|   |_|_|\\___|_|    \\___/|_| \\_| |_| |_|    
 \x1b[0m`;
 
-// Configure file storage
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = path.join(__dirname, 'uploads');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-      console.log(colorful.success(`Created upload directory: ${uploadDir}`));
-    }
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const filename = `${Date.now()}-${file.originalname}`;
-    console.log(colorful.debug(`Storing file as: ${filename}`));
-    cb(null, filename);
-  }
-});
-
-const upload = multer({ 
-  storage,
-  limits: {
-    fileSize: 1024 * 1024 * 1024 //  limit
-  }
-});
-
-// Serve static files with proper headers
-app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
-  setHeaders: (res, path) => {
-    const contentType = mime.lookup(path);
-    res.setHeader('Content-Type', contentType);
-    console.log(colorful.debug(`Serving file: ${path} as ${contentType}`));
-  }
-}));
-
-// File download endpoint
-app.get('/download/:filename', (req, res) => {
-  try {
-    const filePath = path.join(__dirname, 'uploads', req.params.filename);
-    
-    if (!fs.existsSync(filePath)) {
-      console.log(colorful.error(`✗ File not found: ${req.params.filename}`));
-      return res.status(404).json({ success: false, error: 'File not found' });
-    }
-
-    const fileStream = fs.createReadStream(filePath);
-    const originalName = req.params.filename.split('-').slice(1).join('-');
-    
-    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(originalName)}"`);
-    res.setHeader('Content-Type', mime.lookup(filePath) || 'application/octet-stream');
-
-    console.log(colorful.success(`✓ File download started: ${originalName}`));
-    fileStream.pipe(res);
-  } catch (err) {
-    console.log(colorful.error(`✗ File download error: ${err.message}`));
-    res.status(500).json({ success: false, error: 'File download failed' });
-  }
-});
-
-// File delete endpoint
-app.delete('/delete-file/:filename', async (req, res) => {
-  try {
-    const filename = req.params.filename;
-    const filePath = path.join(__dirname, 'uploads', filename);
-    
-    if (!fs.existsSync(filePath)) {
-      console.log(colorful.error(`✗ File not found: ${filename}`));
-      return res.status(404).json({ success: false, error: 'File not found' });
-    }
-
-    // First, find and update all messages referencing this file
-    const fileUrl = `${req.protocol}://${req.get('host')}/uploads/${filename}`;
-    await Messsage.updateMany(
-      { 'file.url': fileUrl },
-      { $set: { 'file.deleted': true } }
-    );
-
-    // Then delete the file
-    fs.unlinkSync(filePath);
-    console.log(colorful.success(`✓ File deleted: ${filename}`));
-
-    res.json({ success: true, message: 'File deleted successfully' });
-  } catch (err) {
-    console.log(colorful.error(`✗ File deletion error: ${err.message}`));
-    res.status(500).json({ success: false, error: 'File deletion failed' });
-  }
-});
-
-// Handle file upload endpoint
-app.post('/upload', upload.single('file'), (req, res) => {
-  try {
-    if (!req.file) {
-      console.log(colorful.error('✗ No file uploaded'));
-      return res.status(400).json({ success: false, error: 'No file uploaded' });
-    }
-    
-    console.log(FILE_UPLOAD_ART);
-    console.log(colorful.success(`✓ File uploaded: ${req.file.originalname}`));
-    console.log(colorful.debug(`⚡ File saved at: ${req.file.path}`));
-    
-    const fileUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
-    
-    res.json({
-      success: true,
-      url: fileUrl,
-      name: req.file.originalname,
-      size: req.file.size,
-      type: req.file.mimetype
-    });
-  } catch (err) {
-    console.log(colorful.error(`✗ File upload error: ${err.message}`));
-    res.status(500).json({ success: false, error: 'File upload failed' });
-  }
-});
-
 // Enhanced colorful console helpers
 const colorful = {
   success: (text) => `\x1b[32m✓ ${text}\x1b[0m`,
@@ -161,12 +48,208 @@ const colorful = {
   banner: (text) => `\x1b[46m\x1b[30m${text}\x1b[0m`
 };
 
+// Enhanced file handling configuration
+const uploadDir = path.resolve(__dirname, 'uploads');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+  console.log(colorful.success(`Created upload directory: ${uploadDir}`));
+}
+
+// Supported file types and their icons
+const fileTypes = {
+  image: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
+  audio: ['audio/mpeg', 'audio/wav', 'audio/ogg'],
+  video: ['video/mp4', 'video/webm', 'video/quicktime'],
+  pdf: ['application/pdf'],
+  document: [
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+  ],
+  archive: ['application/zip', 'application/x-rar-compressed'],
+  text: ['text/plain']
+};
+
+const getFileType = (mimeType) => {
+  for (const [type, mimes] of Object.entries(fileTypes)) {
+    if (mimes.includes(mimeType)) return type;
+  }
+  return 'other';
+};
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const originalName = file.originalname.replace(/[^a-zA-Z0-9_.-]/g, '_');
+    const filename = `${Date.now()}-${originalName}`;
+    console.log(colorful.debug(`Storing file as: ${filename}`));
+    cb(null, filename);
+  }
+});
+
+const upload = multer({
+  storage,
+  limits: {
+    fileSize: 1024 * 1024 * 25 // 25MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    console.log(colorful.debug(`Uploading file type: ${file.mimetype}`));
+    cb(null, true);
+  }
+});
+
+// Serve static files with proper headers
+app.use('/uploads', express.static(uploadDir, {
+  setHeaders: (res, filePath) => {
+    const contentType = mime.lookup(filePath) || 'application/octet-stream';
+    res.setHeader('Content-Type', contentType);
+    
+    const viewableTypes = [
+      ...fileTypes.image,
+      ...fileTypes.audio,
+      ...fileTypes.video,
+      ...fileTypes.pdf,
+      ...fileTypes.text
+    ];
+    
+    if (viewableTypes.includes(contentType)) {
+      res.setHeader('Content-Disposition', 'inline');
+    }
+  }
+}));
+
+// Enhanced file upload endpoint
+app.post('/upload', upload.single('file'), (req, res) => {
+  try {
+    if (!req.file) {
+      console.log(colorful.error('No file received'));
+      return res.status(400).json({ 
+        success: false, 
+        error: 'No file uploaded or file too large' 
+      });
+    }
+
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const host = req.get('host');
+    const fileUrl = `${protocol}://${host}/uploads/${req.file.filename}`;
+    const fileType = getFileType(req.file.mimetype);
+
+    console.log(FILE_UPLOAD_ART);
+    console.log(colorful.success(`File uploaded: ${req.file.originalname}`));
+    console.log(colorful.debug(`File saved at: ${req.file.path}`));
+    console.log(colorful.debug(`File details: ${JSON.stringify({
+      name: req.file.originalname,
+      size: req.file.size,
+      type: req.file.mimetype,
+      url: fileUrl
+    }, null, 2)}`));
+
+    res.json({
+      success: true,
+      url: fileUrl,
+      name: req.file.originalname,
+      size: req.file.size,
+      type: req.file.mimetype,
+      fileType
+    });
+  } catch (err) {
+    console.log(colorful.error(`Upload error: ${err.message}`));
+    res.status(500).json({ 
+      success: false, 
+      error: 'File upload failed',
+      details: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
+  }
+});
+
+// Enhanced file download endpoint
+app.get('/download/:filename', (req, res) => {
+  try {
+    const filePath = path.join(uploadDir, req.params.filename);
+    
+    if (!fs.existsSync(filePath)) {
+      console.log(colorful.error(`File not found: ${req.params.filename}`));
+      return res.status(404).json({ success: false, error: 'File not found' });
+    }
+
+    const originalName = req.params.filename.split('-').slice(1).join('-');
+    const contentType = mime.lookup(filePath) || 'application/octet-stream';
+    
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(originalName)}"`);
+    res.setHeader('Content-Type', contentType);
+    
+    const fileStream = fs.createReadStream(filePath);
+    fileStream.on('error', (err) => {
+      console.log(colorful.error(`File stream error: ${err.message}`));
+      res.status(500).end();
+    });
+    
+    console.log(colorful.success(`Serving file: ${originalName}`));
+    fileStream.pipe(res);
+  } catch (err) {
+    console.log(colorful.error(`Download error: ${err.message}`));
+    res.status(500).json({ success: false, error: 'File download failed' });
+  }
+});
+
+// Enhanced file deletion endpoint
+app.delete('/delete-file/:filename', async (req, res) => {
+  try {
+    const filename = req.params.filename;
+    const filePath = path.join(uploadDir, filename);
+    
+    if (!fs.existsSync(filePath)) {
+      console.log(colorful.error(`File not found: ${filename}`));
+      return res.status(404).json({ success: false, error: 'File not found' });
+    }
+
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const host = req.get('host');
+    const fileUrl = `${protocol}://${host}/uploads/${filename}`;
+
+    await Messsage.updateMany(
+      { 'file.url': fileUrl },
+      { $set: { 'file.deleted': true } }
+    );
+
+    fs.unlinkSync(filePath);
+    console.log(colorful.success(`File deleted: ${filename}`));
+
+    res.json({ 
+      success: true, 
+      message: 'File deleted successfully',
+      deletedUrl: fileUrl
+    });
+  } catch (err) {
+    console.log(colorful.error(`Deletion error: ${err.message}`));
+    res.status(500).json({ success: false, error: 'File deletion failed' });
+  }
+});
+
+// Add error handling middleware for file uploads
+app.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    console.log(colorful.error(`Multer error: ${err.message}`));
+    return res.status(400).json({
+      success: false,
+      error: 'File upload error',
+      details: err.message
+    });
+  }
+  next(err);
+});
+
 // Track active users and rooms
 const activeUsers = new Map();
 const roomUsers = new Map();
-const userSockets = new Map(); // Track user sockets for read receipts
+const userSockets = new Map();
 
-// Enhanced CORS configuration
+// Enhanced CORS configuration for development
 const isProduction = process.env.NODE_ENV === 'production';
 const allowedOrigins = isProduction 
   ? [
@@ -175,26 +258,29 @@ const allowedOrigins = isProduction
       'https://admin.socket.io'
     ]
   : [
-      'http://localhost:5173',
+      'http://localhost:5173', 
       'http://127.0.0.1:5173',
+      'http://localhost:5000', 
       'https://admin.socket.io'
     ];
 
 const corsOptions = {
   origin: (origin, callback) => {
-    if (!origin) return callback(null, true);
+    if (!origin && !isProduction) {
+      return callback(null, true);
+    }
     
     if (allowedOrigins.includes(origin)) {
-      console.log(colorful.success(`✓ Allowed origin: ${origin}`));
-      callback(null, true);
+      console.log(colorful.success(`Allowed origin: ${origin}`));
+      return callback(null, true);
     } else {
-      console.log(colorful.error(`✗ Blocked origin: ${origin}`));
-      callback(new Error('Not allowed by CORS'));
+      console.log(colorful.error(`Blocked origin: ${origin}`));
+      return callback(new Error('Not allowed by CORS'));
     }
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 };
 
 // Middleware
@@ -234,10 +320,10 @@ app.post('/api/register', async (req, res) => {
   try {
     const { username, password } = req.body;
     
-    console.log(colorful.debug(`⚡ New registration attempt for: ${username}`));
+    console.log(colorful.debug(`New registration attempt for: ${username}`));
 
     if (!username || !password) {
-      console.log(colorful.error('✗ Registration failed - Missing fields'));
+      console.log(colorful.error('Registration failed - Missing fields'));
       return res.status(400).json({ 
         success: false,
         error: 'Username and password required' 
@@ -246,7 +332,7 @@ app.post('/api/register', async (req, res) => {
 
     const existingUser = await User.findOne({ username });
     if (existingUser) {
-      console.log(colorful.error(`✗ Username ${username} already exists`));
+      console.log(colorful.error(`Username ${username} already exists`));
       return res.status(409).json({ 
         success: false,
         error: 'Username already exists' 
@@ -256,15 +342,15 @@ app.post('/api/register', async (req, res) => {
     const user = new User({ username, password });
     await user.save();
     
-    console.log(colorful.success(`✓ New user registered: ${username}`));
-    console.log(colorful.debug(`⚡ User count: ${await User.countDocuments()}`));
+    console.log(colorful.success(`New user registered: ${username}`));
+    console.log(colorful.debug(`User count: ${await User.countDocuments()}`));
     
     res.status(201).json({ 
       success: true,
       username: user.username
     });
   } catch (err) {
-    console.log(colorful.error(`✗ Registration error: ${err.message}`));
+    console.log(colorful.error(`Registration error: ${err.message}`));
     res.status(500).json({ 
       success: false,
       error: err.message 
@@ -275,10 +361,10 @@ app.post('/api/register', async (req, res) => {
 app.post('/api/login', async (req, res) => {
   try {
     const { username, password } = req.body;
-    console.log(colorful.debug(`⚡ Login attempt for: ${username}`));
+    console.log(colorful.debug(`Login attempt for: ${username}`));
 
     if (!username || !password) {
-      console.log(colorful.error('✗ Login failed - Missing credentials'));
+      console.log(colorful.error('Login failed - Missing credentials'));
       return res.status(400).json({ 
         success: false,
         error: 'Username and password required' 
@@ -288,7 +374,7 @@ app.post('/api/login', async (req, res) => {
     const user = await User.findOne({ username }).select('+password');
     
     if (!user) {
-      console.log(colorful.error(`✗ User ${username} not found`));
+      console.log(colorful.error(`User ${username} not found`));
       return res.status(401).json({ 
         success: false,
         error: 'Invalid credentials' 
@@ -297,20 +383,20 @@ app.post('/api/login', async (req, res) => {
 
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
-      console.log(colorful.error(`✗ Invalid password for ${username}`));
+      console.log(colorful.error(`Invalid password for ${username}`));
       return res.status(401).json({ 
         success: false,
         error: 'Invalid credentials' 
       });
     }
 
-    console.log(colorful.success(`✓ User logged in: ${username}`));
+    console.log(colorful.success(`User logged in: ${username}`));
     res.json({ 
       success: true,
       username: user.username
     });
   } catch (err) {
-    console.log(colorful.error(`✗ Login error: ${err.message}`));
+    console.log(colorful.error(`Login error: ${err.message}`));
     res.status(500).json({ 
       success: false,
       error: 'Login failed' 
@@ -386,43 +472,42 @@ async function initializeDefaultRooms() {
       { name: 'bedsa', topic: 'BEDSA Community' }
     ];
 
-    console.log(colorful.info('ℹ Initializing default rooms...'));
+    console.log(colorful.info('Initializing default rooms...'));
     
     for (const roomData of defaultRooms) {
       const existingRoom = await Room.findOne({ name: roomData.name });
       if (!existingRoom) {
         await Room.create(roomData);
-        console.log(colorful.success(`✓ Default room "${roomData.name}" created`));
+        console.log(colorful.success(`Default room "${roomData.name}" created`));
       } else {
-        console.log(colorful.debug(`⚡ Room "${roomData.name}" already exists`));
+        console.log(colorful.debug(`Room "${roomData.name}" already exists`));
       }
     }
   } catch (err) {
-    console.log(colorful.error(`✗ Error initializing default rooms: ${err.message}`));
+    console.log(colorful.error(`Error initializing default rooms: ${err.message}`));
   }
 }
 
 // Socket.IO connection handler
 io.on('connection', async (socket) => {
-  console.log(colorful.success(`✓ New connection: ${socket.id}`));
+  console.log(colorful.success(`New connection: ${socket.id}`));
 
   // Username tracking
   socket.on('setUsername', (username) => {
     activeUsers.set(socket.id, username);
     
-    // Track user socket for read receipts
     if (!userSockets.has(username)) {
       userSockets.set(username, new Set());
     }
     userSockets.get(username).add(socket.id);
     
-    console.log(colorful.success(`✓ User ${username} connected (ID: ${socket.id})`));
+    console.log(colorful.success(`User ${username} connected (ID: ${socket.id})`));
   });
 
   // Room list request
   socket.on('getRoomList', async () => {
     try {
-      console.log(colorful.debug(`⚡ Room list requested by ${socket.id}`));
+      console.log(colorful.debug(`Room list requested by ${socket.id}`));
       const rooms = await Room.find();
       const roomList = rooms.map(r => ({
         name: r.name,
@@ -430,16 +515,16 @@ io.on('connection', async (socket) => {
         topic: r.topic
       }));
       socket.emit('roomList', roomList);
-      console.log(colorful.success(`✓ Sent room list to ${socket.id}`));
+      console.log(colorful.success(`Sent room list to ${socket.id}`));
     } catch (err) {
-      console.log(colorful.error(`✗ Error getting room list: ${err.message}`));
+      console.log(colorful.error(`Error getting room list: ${err.message}`));
     }
   });
 
   // Join room
   socket.on('joinRoom', async ({ roomName, username }) => {
     try {
-      console.log(colorful.debug(`⚡ Join room request: ${username} to ${roomName}`));
+      console.log(colorful.debug(`Join room request: ${username} to ${roomName}`));
 
       if (!roomName || !username) {
         throw new Error('Missing room name or username');
@@ -483,20 +568,20 @@ io.on('connection', async (socket) => {
         .limit(50);
       socket.emit('roomHistory', messages);
 
-      console.log(colorful.success(`✓ ${username} joined ${roomName} (${usersInRoom.size} users)`));
+      console.log(colorful.success(`${username} joined ${roomName} (${usersInRoom.size} users)`));
 
     } catch (err) {
-      console.log(colorful.error(`✗ Join room error: ${err.message}`));
+      console.log(colorful.error(`Join room error: ${err.message}`));
       socket.emit('roomError', { message: err.message });
     }
   });
 
   socket.on('createRoom', async ({ roomName, username }) => {
     try {
-      console.log(colorful.debug(`⚡ Create room request: ${roomName} by ${username}`));
+      console.log(colorful.debug(`Create room request: ${roomName} by ${username}`));
       
       if (!roomName || !username) {
-        console.log(colorful.error('✗ Room creation failed - Missing fields'));
+        console.log(colorful.error('Room creation failed - Missing fields'));
         return socket.emit('roomError', { message: 'Room name and username are required' });
       }
 
@@ -504,7 +589,7 @@ io.on('connection', async (socket) => {
       const existingRoom = await Room.findOne({ name: formattedName });
 
       if (existingRoom) {
-        console.log(colorful.error(`✗ Room ${formattedName} already exists`));
+        console.log(colorful.error(`Room ${formattedName} already exists`));
         return socket.emit('roomError', { message: 'Room already exists' });
       }
 
@@ -540,9 +625,9 @@ io.on('connection', async (socket) => {
         topic: room.topic
       });
 
-      console.log(colorful.success(`✓ Room "${formattedName}" created by ${username}`));
+      console.log(colorful.success(`Room "${formattedName}" created by ${username}`));
     } catch (err) {
-      console.log(colorful.error(`✗ Room creation error: ${err.message}`));
+      console.log(colorful.error(`Room creation error: ${err.message}`));
       socket.emit('roomError', { message: 'Failed to create room' });
     }
   });
@@ -554,13 +639,13 @@ io.on('connection', async (socket) => {
       const roomName = Array.from(socket.rooms).find(r => r !== socket.id);
       
       if (!roomName) {
-        console.log(colorful.warn(`⚠ User ${username} tried to send message without joining a room`));
+        console.log(colorful.warn(`User ${username} tried to send message without joining a room`));
         return;
       }
       
       const roomDoc = await Room.findOne({ name: roomName });
       if (!roomDoc) {
-        console.log(colorful.error(`✗ Room ${roomName} not found in database`));
+        console.log(colorful.error(`Room ${roomName} not found in database`));
         return;
       }
       
@@ -582,10 +667,11 @@ io.on('connection', async (socket) => {
           name: message.file.name,
           type: message.file.type,
           size: message.file.size,
+          fileType: getFileType(message.file.type),
           deleted: false
         };
-        console.log(colorful.success(`✓ File attached: ${message.file.name}`));
-        console.log(colorful.debug(`⚡ File type: ${message.file.type}, size: ${message.file.size} bytes`));
+        console.log(colorful.success(`File attached: ${message.file.name}`));
+        console.log(colorful.debug(`File type: ${message.file.type}, size: ${message.file.size} bytes`));
       }
       
       // Save message to database
@@ -608,9 +694,9 @@ io.on('connection', async (socket) => {
 
       io.to(roomName).emit('message', messageToEmit);
       
-      console.log(colorful.debug(`⚡ Message from ${username} in ${roomName}: ${message.content ? message.content.substring(0, 20) + '...' : 'File message'}`));
+      console.log(colorful.debug(`Message from ${username} in ${roomName}: ${message.content ? message.content.substring(0, 20) + '...' : 'File message'}`));
     } catch (err) {
-      console.log(colorful.error(`✗ Message send error: ${err.message}`));
+      console.log(colorful.error(`Message send error: ${err.message}`));
     }
   });
 
@@ -631,9 +717,9 @@ io.on('connection', async (socket) => {
         originalName: message.file.name
       });
       
-      console.log(colorful.success(`✓ File download prepared: ${message.file.name}`));
+      console.log(colorful.success(`File download prepared: ${message.file.name}`));
     } catch (err) {
-      console.log(colorful.error(`✗ File download error: ${err.message}`));
+      console.log(colorful.error(`File download error: ${err.message}`));
       socket.emit('fileError', { message: 'Download failed' });
     }
   });
@@ -642,49 +728,38 @@ io.on('connection', async (socket) => {
   socket.on('deleteFile', async ({ messageId }) => {
     try {
       const message = await Messsage.findById(messageId);
-      if (!message || !message.file) {
-        return socket.emit('fileError', { message: 'File not found' });
-      }
+      if (!message?.file) return;
 
-      // Extract filename from URL
       const filename = message.file.url.split('/').pop();
-      const filePath = path.join(__dirname, 'uploads', filename);
+      const filePath = path.join(uploadDir, filename);
 
       if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
-        console.log(colorful.success(`✓ File deleted: ${filename}`));
       }
 
-      // Update message to mark file as deleted
       message.file.deleted = true;
       await message.save();
 
-      // Notify all room members
       io.to(message.roomName).emit('fileDeleted', { messageId });
-
-      socket.emit('fileDeletedSuccess', { messageId });
     } catch (err) {
-      console.log(colorful.error(`✗ File deletion error: ${err.message}`));
-      socket.emit('fileError', { message: 'File deletion failed' });
+      console.log(colorful.error(`File deletion error: ${err.message}`));
     }
   });
 
   // Mark message as read
   socket.on('markAsRead', async ({ messageId, username }) => {
     try {
-      console.log(colorful.debug(`⚡ Marking message ${messageId} as read by ${username}`));
+      console.log(colorful.debug(`Marking message ${messageId} as read by ${username}`));
       const message = await Messsage.findById(messageId);
       if (!message) {
-        console.log(colorful.error(`✗ Message ${messageId} not found`));
+        console.log(colorful.error(`Message ${messageId} not found`));
         return;
       }
       
-      // Add user to readBy array if not already present
       if (!message.readBy.includes(username)) {
         message.readBy.push(username);
         await message.save();
         
-        // Notify sender that message has been read
         const senderSockets = userSockets.get(message.username);
         if (senderSockets) {
           senderSockets.forEach(sockId => {
@@ -692,39 +767,37 @@ io.on('connection', async (socket) => {
           });
         }
         
-        console.log(colorful.success(`✓ Message ${messageId} marked as read by ${username}`));
+        console.log(colorful.success(`Message ${messageId} marked as read by ${username}`));
       }
     } catch (err) {
-      console.log(colorful.error(`✗ Error marking message as read: ${err.message}`));
+      console.log(colorful.error(`Error marking message as read: ${err.message}`));
     }
   });
 
   // Delete message
   socket.on('deleteMessage', async ({ messageId, deleteForAll, username }) => {
     try {
-      console.log(colorful.debug(`⚡ Deleting message ${messageId} (for all: ${deleteForAll}) by ${username}`));
+      console.log(colorful.debug(`Deleting message ${messageId} (for all: ${deleteForAll}) by ${username}`));
       const message = await Messsage.findById(messageId);
       if (!message) {
-        console.log(colorful.error(`✗ Message ${messageId} not found`));
+        console.log(colorful.error(`Message ${messageId} not found`));
         return;
       }
       
       if (deleteForAll) {
-        // Delete for everyone
         await Messsage.deleteOne({ _id: messageId });
         io.to(message.roomName).emit('messageDeleted', { messageId });
-        console.log(colorful.success(`✓ Message ${messageId} deleted for everyone by ${username}`));
+        console.log(colorful.success(`Message ${messageId} deleted for everyone by ${username}`));
       } else {
-        // Delete for me
         if (!message.deletedFor.includes(username)) {
           message.deletedFor.push(username);
           await message.save();
           socket.emit('messageDeletedForMe', { messageId });
-          console.log(colorful.success(`✓ Message ${messageId} deleted for ${username}`));
+          console.log(colorful.success(`Message ${messageId} deleted for ${username}`));
         }
       }
     } catch (err) {
-      console.log(colorful.error(`✗ Error deleting message: ${err.message}`));
+      console.log(colorful.error(`Error deleting message: ${err.message}`));
     }
   });
 
@@ -732,20 +805,20 @@ io.on('connection', async (socket) => {
   socket.on('typing', ({ room }) => {
     const username = activeUsers.get(socket.id) || 'Anonymous';
     io.to(room).emit('typing', { username, room });
-    console.log(colorful.debug(`⚡ ${username} is typing in ${room}`));
+    console.log(colorful.debug(`${username} is typing in ${room}`));
   });
 
   socket.on('stopTyping', ({ room }) => {
     const username = activeUsers.get(socket.id) || 'Anonymous';
     io.to(room).emit('stopTyping', { username, room });
-    console.log(colorful.debug(`⚡ ${username} stopped typing in ${room}`));
+    console.log(colorful.debug(`${username} stopped typing in ${room}`));
   });
 
   // Disconnection handler
   socket.on('disconnect', (reason) => {
     const username = activeUsers.get(socket.id);
     if (username) {
-      console.log(colorful.warn(`⚠ User ${username} disconnected: ${reason}`));
+      console.log(colorful.warn(`User ${username} disconnected: ${reason}`));
       
       // Remove user from all rooms
       roomUsers.forEach((users, room) => {
@@ -756,7 +829,7 @@ io.on('connection', async (socket) => {
           } else {
             roomUsers.set(room, users);
           }
-          console.log(colorful.debug(`⚡ User ${username} was removed from room ${room}`));
+          console.log(colorful.debug(`User ${username} was removed from room ${room}`));
         }
       });
       
@@ -781,7 +854,7 @@ io.on('connection', async (socket) => {
         io.emit('roomList', roomList);
       });
     } else {
-      console.log(colorful.warn(`⚠ Anonymous user disconnected: ${reason}`));
+      console.log(colorful.warn(`Anonymous user disconnected: ${reason}`));
     }
   });
 
@@ -792,13 +865,13 @@ io.on('connection', async (socket) => {
     
     socket.once('💗', () => {
       const latency = Date.now() - start;
-      console.log(colorful.debug(`⚡ Heartbeat from ${socket.id} (${latency}ms)`));
+      console.log(colorful.debug(`Heartbeat from ${socket.id} (${latency}ms)`));
     });
   }, 10000);
 
   socket.on('disconnect', () => {
     clearInterval(pingInterval);
-    console.log(colorful.debug(`⚡ Heartbeat monitor stopped for ${socket.id}`));
+    console.log(colorful.debug(`Heartbeat monitor stopped for ${socket.id}`));
   });
 });
 
@@ -841,6 +914,6 @@ connectDB().then(async () => {
     `);
   });
 }).catch(err => {
-  console.log(colorful.error(`✗ Database connection failed: ${err.message}`));
+  console.log(colorful.error(`Database connection failed: ${err.message}`));
   process.exit(1);
 });
