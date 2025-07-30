@@ -39,14 +39,14 @@ function Header({ user, onLogout }) {
           width: 100%;
           background: linear-gradient(to right, #0e7f54ff, #8b5cf6);
           box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-          border-radius:20px;
+          border-radius: 20px 20px 0 0;
         }
         
         .header-container {
           width: 100%;
           max-width: 1200px;
           margin: 0 auto;
-          padding: 1.5rem 1rem;
+          padding: 1rem;
           display: flex;
           flex-direction: column;
           align-items: center;
@@ -157,11 +157,10 @@ function Footer() {
           width: 100%;
           background: linear-gradient(to right, #1e293b, #0f172a);
           color: #e2e8f0;
-          padding: 2rem 0;
-          border-radius:2px;
-          border-top-right-radius: 70px;
-          border-bottom-left-radius: 70px;
+          padding: 1.5rem 0;
+          border-radius: 0 0 20px 20px;
           box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.1);
+          margin-top: auto;
         }
         
         .footer-container {
@@ -290,12 +289,12 @@ function Layout({ children, user, onLogout }) {
           width: 100%;
           max-width: 1200px;
           margin: 0 auto;
-         padding: 0.5rem 1rem; /* Top/bottom padding */
+          padding: 0;
         }
         
         @media (min-width: 768px) {
           .main-content {
-            padding: 0.75rem 1.5rem; /* Top/bottom padding */
+            padding: 0;
           }
         }
       `}</style>

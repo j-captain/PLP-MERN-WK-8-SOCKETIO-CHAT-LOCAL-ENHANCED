@@ -21,7 +21,6 @@ export default function AuthForm({ onAuth, error, setError }) {
     <div className="page-container">
       <div className="auth-container">
         <header className="auth-header">
-          <h1 className="auth-title">Enhanced SocketIO Chat App</h1>
           <h2 className="auth-subtitle">
             {isLogin ? 'Sign In to Continue' : 'Create Your Account'}
           </h2>
@@ -84,55 +83,38 @@ export default function AuthForm({ onAuth, error, setError }) {
           </button>
         </div>
 
-        {/* <footer className="auth-footer">
-          <p>© {new Date().getFullYear()} Enhanced SocketIO Chat</p>
-          <p>All rights reserved</p>
-          <p className="footer-links">
-            <a href="#">Privacy Policy</a> | <a href="#">Terms of Service</a>
-          </p>
-        </footer> */}
-
         <style jsx>{`
           .page-container {
             display: flex;
             justify-content: center;
             align-items: center;
-            min-height: calc(100vh - 120px); /* Accounts for the header and footer */
-            padding: 0.5rem 1rem; /* For Reduced padding */
+            min-height: calc(100vh - 120px);
+            padding: 0.5rem 1rem;
             background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
           }
           
           .auth-container {
             width: 100%;
-            max-width: 28rem;
-            padding: 1.5rem; /* Reduced padding */
+            max-width: 30rem; /* Slightly wider container */
+            padding: 2rem; /* More padding inside the form */
             background-color: #ffffff;
             border-radius: 1rem;
             box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 
                         0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            margin: 0 auto;
             animation: fadeIn 0.3s ease-out;
           }
           
           .auth-header {
             text-align: center;
-            margin-bottom: 1.5rem;
-          }
-          
-          .auth-title {
-            font-size: 1.75rem;
-            font-weight: 700;
-            line-height: 1.2;
-            margin-bottom: 0.5rem;
-            color: #4f46e5;
-            background: linear-gradient(to right, #4f46e5, #8b5cf6);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            margin-bottom: 1.5rem; /* More space below header */
           }
           
           .auth-subtitle {
-            font-size: 1rem;
-            font-weight: 500;
-            color: #64748b;
+            font-style: italic;
+            font-weight: bolder;
+            font-size: 1.3rem; /* Slightly larger subtitle */
+            color: #4f46e5;
             margin: 0;
           }
           
@@ -142,20 +124,20 @@ export default function AuthForm({ onAuth, error, setError }) {
             color: #b91c1c;
             background-color: #fee2e2;
             border-radius: 0.375rem;
-            margin-bottom: 1rem;
+            margin-bottom: 1.25rem; /* More space below error */
             text-align: center;
           }
           
           .auth-form {
             display: flex;
             flex-direction: column;
-            gap: 1.25rem;
+            gap: 1.25rem; /* More space between form elements */
           }
           
           .form-group {
             display: flex;
             flex-direction: column;
-            gap: 0.5rem;
+            gap: 0.5rem; /* More space between label and input */
           }
           
           .form-label {
@@ -166,12 +148,13 @@ export default function AuthForm({ onAuth, error, setError }) {
           
           .form-input {
             width: 100%;
-            padding: 0.75rem;
+            padding: 0.75rem; /* More comfortable input padding */
             border: 1px solid #e2e8f0;
             border-radius: 0.5rem;
             font-size: 0.875rem;
             transition: all 0.2s ease;
             background-color: #f8fafc;
+            box-sizing: border-box;
           }
           
           .form-input:focus {
@@ -196,7 +179,7 @@ export default function AuthForm({ onAuth, error, setError }) {
             font-weight: 600;
             cursor: pointer;
             transition: all 0.2s ease;
-            margin-top: 0.5rem;
+            margin-top: 0.75rem; /* More space above button */
             box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.2), 
                         0 2px 4px -1px rgba(79, 70, 229, 0.1);
           }
@@ -218,7 +201,7 @@ export default function AuthForm({ onAuth, error, setError }) {
           
           .auth-toggle {
             text-align: center;
-            margin: 1.5rem 0;
+            margin: 1.25rem 0 0; /* More space above toggle */
             font-size: 0.875rem;
           }
           
@@ -234,29 +217,6 @@ export default function AuthForm({ onAuth, error, setError }) {
           
           .toggle-button:hover {
             color: #4338ca;
-            text-decoration: underline;
-          }
-          
-          .auth-footer {
-            text-align: center;
-            margin-top: 2rem;
-            padding-top: 1.5rem;
-            border-top: 1px solid #e2e8f0;
-            color: #64748b;
-            font-size: 0.75rem;
-          }
-          
-          .footer-links {
-            margin-top: 0.5rem;
-          }
-          
-          .footer-links a {
-            color: #4f46e5;
-            text-decoration: none;
-            margin: 0 0.25rem;
-          }
-          
-          .footer-links a:hover {
             text-decoration: underline;
           }
           
