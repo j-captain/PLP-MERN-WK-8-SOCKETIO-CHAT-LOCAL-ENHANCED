@@ -1,4 +1,4 @@
-/* Base Styles */
+/* Base Styles
 :root {
   --primary-color: #6366f1;
   --primary-hover: #4f46e5;
@@ -19,7 +19,7 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
-}
+} */
 
 /* body {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
@@ -34,7 +34,7 @@
 } */
 
 /* Typography */
-h1 {
+/* h1 {
   font-size: 2rem;
   font-weight: 700;
   line-height: 1.2;
@@ -54,7 +54,7 @@ a:hover {
 }
 
 /* Buttons */
-button {
+/* button {
   background-color: var(--primary-color);
   color: white;
   border: none;
@@ -80,11 +80,11 @@ button:active {
 button:focus {
   outline: 3px solid var(--primary-color);
   outline-offset: 2px;
-}
+} */
 
  
 /* Animations */
-@keyframes fadeIn {
+/* @keyframes fadeIn {
   from {
     opacity: 0;
     transform: translateY(10px);
@@ -102,7 +102,7 @@ button:focus {
   50% {
     opacity: 1;
   }
-}
+} */ 
 
  
  
