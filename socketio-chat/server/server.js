@@ -8,13 +8,13 @@ const bcrypt = require('bcryptjs');
 const connectDB = require('./config/db');
 const User = require('./models/User');
 const Room = require('./models/Room');
-const Messsage = require('./models/Message');
+const Message = require('./models/Message');
 const mongoose = require('mongoose');
-const socketio = require('socket.io');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const mime = require('mime-types');
+const { v4: uuidv4 } = require('uuid');
 
 const app = express();
 const server = http.createServer(app);
@@ -38,6 +38,86 @@ const FILE_UPLOAD_ART = `
  |_|   |_|_|\\___|_|    \\___/|_| \\_| |_| |_|    
 \x1b[0m`;
 
+// Configure file storage with organized directories
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const fileType = file.mimetype.split('/')[0];
+    let uploadDir = path.join(__dirname, 'uploads');
+    
+    // Create subdirectories based on file type
+    switch(fileType) {
+      case 'image':
+        uploadDir = path.join(uploadDir, 'images');
+        break;
+      case 'video':
+        uploadDir = path.join(uploadDir, 'videos');
+        break;
+      case 'audio':
+        uploadDir = path.join(uploadDir, 'audio');
+        break;
+      case 'application':
+        if (file.mimetype.includes('pdf')) {
+          uploadDir = path.join(uploadDir, 'documents', 'pdf');
+        } else if (file.mimetype.includes('word') || file.mimetype.includes('document')) {
+          uploadDir = path.join(uploadDir, 'documents', 'word');
+        } else if (file.mimetype.includes('zip') || file.mimetype.includes('compressed')) {
+          uploadDir = path.join(uploadDir, 'archives');
+        } else {
+          uploadDir = path.join(uploadDir, 'documents', 'other');
+        }
+        break;
+      default:
+        uploadDir = path.join(uploadDir, 'other');
+    }
+    
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+      console.log(`Created upload directory: ${uploadDir}`);
+    }
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueId = uuidv4();
+    const ext = path.extname(file.originalname);
+    const filename = `${uniqueId}${ext}`;
+    console.log(`Storing file as: ${filename}`);
+    cb(null, filename);
+  }
+});
+
+const upload = multer({ 
+  storage,
+  limits: {
+    fileSize: 50 * 1024 * 1024 // 50MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = [
+      'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+      'video/mp4', 'video/webm', 'video/quicktime',
+      'audio/mpeg', 'audio/wav', 'audio/ogg',
+      'application/pdf', 
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/zip', 'application/x-zip-compressed'
+    ];
+    
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('File type not allowed'), false);
+    }
+  }
+});
+
+// Serve static files with proper headers and caching
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
+  setHeaders: (res, path) => {
+    const contentType = mime.lookup(path);
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'public, max-age=31536000');
+  }
+}));
+
 // Enhanced colorful console helpers
 const colorful = {
   success: (text) => `\x1b[32m✓ ${text}\x1b[0m`,
@@ -48,239 +128,33 @@ const colorful = {
   banner: (text) => `\x1b[46m\x1b[30m${text}\x1b[0m`
 };
 
-// Enhanced file handling configuration
-const uploadDir = path.resolve(__dirname, 'uploads');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-  console.log(colorful.success(`Created upload directory: ${uploadDir}`));
-}
-
-// Supported file types and their icons
-const fileTypes = {
-  image: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
-  audio: ['audio/mpeg', 'audio/wav', 'audio/ogg'],
-  video: ['video/mp4', 'video/webm', 'video/quicktime'],
-  pdf: ['application/pdf'],
-  document: [
-    'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'application/vnd.ms-excel',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    'application/vnd.ms-powerpoint',
-    'application/vnd.openxmlformats-officedocument.presentationml.presentation'
-  ],
-  archive: ['application/zip', 'application/x-rar-compressed'],
-  text: ['text/plain']
-};
-
-const getFileType = (mimeType) => {
-  for (const [type, mimes] of Object.entries(fileTypes)) {
-    if (mimes.includes(mimeType)) return type;
-  }
-  return 'other';
-};
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const originalName = file.originalname.replace(/[^a-zA-Z0-9_.-]/g, '_');
-    const filename = `${Date.now()}-${originalName}`;
-    console.log(colorful.debug(`Storing file as: ${filename}`));
-    cb(null, filename);
-  }
-});
-
-const upload = multer({
-  storage,
-  limits: {
-    fileSize: 1024 * 1024 * 25 // 25MB limit
-  },
-  fileFilter: (req, file, cb) => {
-    console.log(colorful.debug(`Uploading file type: ${file.mimetype}`));
-    cb(null, true);
-  }
-});
-
-// Serve static files with proper headers
-app.use('/uploads', express.static(uploadDir, {
-  setHeaders: (res, filePath) => {
-    const contentType = mime.lookup(filePath) || 'application/octet-stream';
-    res.setHeader('Content-Type', contentType);
-    
-    const viewableTypes = [
-      ...fileTypes.image,
-      ...fileTypes.audio,
-      ...fileTypes.video,
-      ...fileTypes.pdf,
-      ...fileTypes.text
-    ];
-    
-    if (viewableTypes.includes(contentType)) {
-      res.setHeader('Content-Disposition', 'inline');
-    }
-  }
-}));
-
-// Enhanced file upload endpoint
-app.post('/upload', upload.single('file'), (req, res) => {
-  try {
-    if (!req.file) {
-      console.log(colorful.error('No file received'));
-      return res.status(400).json({ 
-        success: false, 
-        error: 'No file uploaded or file too large' 
-      });
-    }
-
-    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-    const host = req.get('host');
-    const fileUrl = `${protocol}://${host}/uploads/${req.file.filename}`;
-    const fileType = getFileType(req.file.mimetype);
-
-    console.log(FILE_UPLOAD_ART);
-    console.log(colorful.success(`File uploaded: ${req.file.originalname}`));
-    console.log(colorful.debug(`File saved at: ${req.file.path}`));
-    console.log(colorful.debug(`File details: ${JSON.stringify({
-      name: req.file.originalname,
-      size: req.file.size,
-      type: req.file.mimetype,
-      url: fileUrl
-    }, null, 2)}`));
-
-    res.json({
-      success: true,
-      url: fileUrl,
-      name: req.file.originalname,
-      size: req.file.size,
-      type: req.file.mimetype,
-      fileType
-    });
-  } catch (err) {
-    console.log(colorful.error(`Upload error: ${err.message}`));
-    res.status(500).json({ 
-      success: false, 
-      error: 'File upload failed',
-      details: process.env.NODE_ENV === 'development' ? err.message : undefined
-    });
-  }
-});
-
-// Enhanced file download endpoint
-app.get('/download/:filename', (req, res) => {
-  try {
-    const filePath = path.join(uploadDir, req.params.filename);
-    
-    if (!fs.existsSync(filePath)) {
-      console.log(colorful.error(`File not found: ${req.params.filename}`));
-      return res.status(404).json({ success: false, error: 'File not found' });
-    }
-
-    const originalName = req.params.filename.split('-').slice(1).join('-');
-    const contentType = mime.lookup(filePath) || 'application/octet-stream';
-    
-    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(originalName)}"`);
-    res.setHeader('Content-Type', contentType);
-    
-    const fileStream = fs.createReadStream(filePath);
-    fileStream.on('error', (err) => {
-      console.log(colorful.error(`File stream error: ${err.message}`));
-      res.status(500).end();
-    });
-    
-    console.log(colorful.success(`Serving file: ${originalName}`));
-    fileStream.pipe(res);
-  } catch (err) {
-    console.log(colorful.error(`Download error: ${err.message}`));
-    res.status(500).json({ success: false, error: 'File download failed' });
-  }
-});
-
-// Enhanced file deletion endpoint
-app.delete('/delete-file/:filename', async (req, res) => {
-  try {
-    const filename = req.params.filename;
-    const filePath = path.join(uploadDir, filename);
-    
-    if (!fs.existsSync(filePath)) {
-      console.log(colorful.error(`File not found: ${filename}`));
-      return res.status(404).json({ success: false, error: 'File not found' });
-    }
-
-    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-    const host = req.get('host');
-    const fileUrl = `${protocol}://${host}/uploads/${filename}`;
-
-    await Messsage.updateMany(
-      { 'file.url': fileUrl },
-      { $set: { 'file.deleted': true } }
-    );
-
-    fs.unlinkSync(filePath);
-    console.log(colorful.success(`File deleted: ${filename}`));
-
-    res.json({ 
-      success: true, 
-      message: 'File deleted successfully',
-      deletedUrl: fileUrl
-    });
-  } catch (err) {
-    console.log(colorful.error(`Deletion error: ${err.message}`));
-    res.status(500).json({ success: false, error: 'File deletion failed' });
-  }
-});
-
-// Add error handling middleware for file uploads
-app.use((err, req, res, next) => {
-  if (err instanceof multer.MulterError) {
-    console.log(colorful.error(`Multer error: ${err.message}`));
-    return res.status(400).json({
-      success: false,
-      error: 'File upload error',
-      details: err.message
-    });
-  }
-  next(err);
-});
-
 // Track active users and rooms
-const activeUsers = new Map();
-const roomUsers = new Map();
-const userSockets = new Map();
+const activeUsers = new Map(); // socket.id -> username
+const roomUsers = new Map();   // roomName -> Set of usernames
+const userSockets = new Map(); // username -> Set of socket.ids
+const readReceipts = new Map(); // messageId -> Set of usernames who read it
 
-// Enhanced CORS configuration for development
+// MODIFIED: Enhanced CORS configuration to use environment variables
 const isProduction = process.env.NODE_ENV === 'production';
 const allowedOrigins = isProduction 
-  ? [
-      'https://plp-mern-wk-5-web-sockets.onrender.com',
-      'https://plp-mern-wk-5-web-sockets-frontend-4.onrender.com',
-      'https://admin.socket.io'
-    ]
-  : [
-      'http://localhost:5173', 
-      'http://127.0.0.1:5173',
-      'http://localhost:5000', 
-      'https://admin.socket.io'
-    ];
+  ? process.env.ALLOWED_ORIGINS.split(',')
+  : ['http://localhost:5173', 'http://127.0.0.1:5173', 'https://admin.socket.io'];
 
 const corsOptions = {
   origin: (origin, callback) => {
     if (!origin && !isProduction) {
       return callback(null, true);
     }
-    
     if (allowedOrigins.includes(origin)) {
-      console.log(colorful.success(`Allowed origin: ${origin}`));
-      return callback(null, true);
+      callback(null, true);
     } else {
-      console.log(colorful.error(`Blocked origin: ${origin}`));
-      return callback(new Error('Not allowed by CORS'));
+      console.log(colorful.error(`Blocked by CORS: ${origin}`));
+      callback(new Error('Not allowed by CORS'));
     }
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+  allowedHeaders: ['Content-Type', 'Authorization']
 };
 
 // Middleware
@@ -320,10 +194,10 @@ app.post('/api/register', async (req, res) => {
   try {
     const { username, password } = req.body;
     
-    console.log(colorful.debug(`New registration attempt for: ${username}`));
+    console.log(colorful.debug(`⚡ New registration attempt for: ${username}`));
 
     if (!username || !password) {
-      console.log(colorful.error('Registration failed - Missing fields'));
+      console.log(colorful.error('✗ Registration failed - Missing fields'));
       return res.status(400).json({ 
         success: false,
         error: 'Username and password required' 
@@ -332,7 +206,7 @@ app.post('/api/register', async (req, res) => {
 
     const existingUser = await User.findOne({ username });
     if (existingUser) {
-      console.log(colorful.error(`Username ${username} already exists`));
+      console.log(colorful.error(`✗ Username ${username} already exists`));
       return res.status(409).json({ 
         success: false,
         error: 'Username already exists' 
@@ -342,15 +216,15 @@ app.post('/api/register', async (req, res) => {
     const user = new User({ username, password });
     await user.save();
     
-    console.log(colorful.success(`New user registered: ${username}`));
-    console.log(colorful.debug(`User count: ${await User.countDocuments()}`));
+    console.log(colorful.success(`✓ New user registered: ${username}`));
+    console.log(colorful.debug(`⚡ User count: ${await User.countDocuments()}`));
     
     res.status(201).json({ 
       success: true,
       username: user.username
     });
   } catch (err) {
-    console.log(colorful.error(`Registration error: ${err.message}`));
+    console.log(colorful.error(`✗ Registration error: ${err.message}`));
     res.status(500).json({ 
       success: false,
       error: err.message 
@@ -361,10 +235,10 @@ app.post('/api/register', async (req, res) => {
 app.post('/api/login', async (req, res) => {
   try {
     const { username, password } = req.body;
-    console.log(colorful.debug(`Login attempt for: ${username}`));
+    console.log(colorful.debug(`⚡ Login attempt for: ${username}`));
 
     if (!username || !password) {
-      console.log(colorful.error('Login failed - Missing credentials'));
+      console.log(colorful.error('✗ Login failed - Missing credentials'));
       return res.status(400).json({ 
         success: false,
         error: 'Username and password required' 
@@ -374,7 +248,7 @@ app.post('/api/login', async (req, res) => {
     const user = await User.findOne({ username }).select('+password');
     
     if (!user) {
-      console.log(colorful.error(`User ${username} not found`));
+      console.log(colorful.error(`✗ User ${username} not found`));
       return res.status(401).json({ 
         success: false,
         error: 'Invalid credentials' 
@@ -383,26 +257,75 @@ app.post('/api/login', async (req, res) => {
 
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
-      console.log(colorful.error(`Invalid password for ${username}`));
+      console.log(colorful.error(`✗ Invalid password for ${username}`));
       return res.status(401).json({ 
         success: false,
         error: 'Invalid credentials' 
       });
     }
 
-    console.log(colorful.success(`User logged in: ${username}`));
+    console.log(colorful.success(`✓ User logged in: ${username}`));
     res.json({ 
       success: true,
       username: user.username
     });
   } catch (err) {
-    console.log(colorful.error(`Login error: ${err.message}`));
+    console.log(colorful.error(`✗ Login error: ${err.message}`));
     res.status(500).json({ 
       success: false,
       error: 'Login failed' 
     });
   }
 });
+
+ 
+      // In your file upload handler
+      app.post('/upload', upload.single('file'), (req, res) => {
+          try {
+              if (!req.file) {
+                  console.log(colorful.error('✗ No file uploaded'));
+                  return res.status(400).json({ success: false, error: 'No file uploaded' });
+              }
+              
+              const fileUrl = `${req.protocol}://${req.get('host')}/uploads${req.file.path.replace(path.join(__dirname, 'uploads'), '')}`;
+              
+              // Determine file icon based on type
+              const getFileIcon = (mimeType) => {
+                  if (mimeType.startsWith('image/')) return '🖼️';
+                  if (mimeType.startsWith('video/')) return '🎬';
+                  if (mimeType.startsWith('audio/')) return '🎵';
+                  if (mimeType.includes('pdf')) return '📄';
+                  if (mimeType.includes('word')) return '📝';
+                  if (mimeType.includes('zip')) return '🗄️';
+                  return '📎';
+              };
+              
+              const fileIcon = getFileIcon(req.file.mimetype);
+              
+              console.log(colorful.success(`✓ File uploaded: ${req.file.originalname}`));
+              
+              res.json({
+                  success: true,
+                  url: fileUrl,
+                  name: req.file.originalname,
+                  size: req.file.size,
+                  type: req.file.mimetype,
+                  icon: fileIcon,
+                  canPreview: [
+                      'image/jpeg', 'image/png', 'image/gif', 
+                      'video/mp4', 'video/webm',
+                      'audio/mpeg', 'audio/wav',
+                      'application/pdf'
+                  ].includes(req.file.mimetype)
+              });
+          } catch (err) {
+              console.log(colorful.error(`✗ File upload error: ${err.message}`));
+              res.status(500).json({ 
+                  success: false, 
+                  error: err.message || 'File upload failed' 
+              });
+          }
+      });
 
 // Root route 
 app.get('/', (req, res) => {
@@ -431,12 +354,10 @@ app.get('/', (req, res) => {
     `);
 });
 
-// Socket.IO setup
+// MODIFIED: Socket.IO setup with production-ready config
 const io = new Server(server, {
   cors: {
-    origin: isProduction 
-      ? ['https://plp-mern-wk-5-web-sockets-backened.onrender.com', 'https://plp-mern-wk-5-web-sockets-frontend-4.onrender.com', 'https://admin.socket.io']
-      : ['http://localhost:5173', 'http://127.0.0.1:5173', 'https://admin.socket.io'],
+    origin: allowedOrigins,
     methods: ["GET", "POST"],
     credentials: true
   },
@@ -444,7 +365,8 @@ const io = new Server(server, {
     maxDisconnectionDuration: 2 * 60 * 1000,
     skipMiddlewares: true
   },
-  transports: ['websocket', 'polling']
+  transports: ['websocket', 'polling'],
+  path: '/socket.io' // Explicit path for production
 });
 
 // Socket.IO middleware
@@ -472,59 +394,67 @@ async function initializeDefaultRooms() {
       { name: 'bedsa', topic: 'BEDSA Community' }
     ];
 
-    console.log(colorful.info('Initializing default rooms...'));
+    console.log(colorful.info('ℹ Initializing default rooms...'));
     
     for (const roomData of defaultRooms) {
       const existingRoom = await Room.findOne({ name: roomData.name });
       if (!existingRoom) {
         await Room.create(roomData);
-        console.log(colorful.success(`Default room "${roomData.name}" created`));
+        console.log(colorful.success(`✓ Default room "${roomData.name}" created`));
       } else {
-        console.log(colorful.debug(`Room "${roomData.name}" already exists`));
+        console.log(colorful.debug(`⚡ Room "${roomData.name}" already exists`));
       }
     }
   } catch (err) {
-    console.log(colorful.error(`Error initializing default rooms: ${err.message}`));
+    console.log(colorful.error(`✗ Error initializing default rooms: ${err.message}`));
   }
 }
 
 // Socket.IO connection handler
 io.on('connection', async (socket) => {
-  console.log(colorful.success(`New connection: ${socket.id}`));
+  console.log(colorful.success(`✓ New connection: ${socket.id}`));
 
   // Username tracking
   socket.on('setUsername', (username) => {
+    if (!username) {
+      console.log(colorful.error('✗ Empty username provided'));
+      return;
+    }
+    
     activeUsers.set(socket.id, username);
     
+    // Track user's sockets for multiple device support
     if (!userSockets.has(username)) {
       userSockets.set(username, new Set());
     }
     userSockets.get(username).add(socket.id);
     
-    console.log(colorful.success(`User ${username} connected (ID: ${socket.id})`));
+    console.log(colorful.success(`✓ User ${username} connected (ID: ${socket.id})`));
   });
 
   // Room list request
   socket.on('getRoomList', async () => {
     try {
-      console.log(colorful.debug(`Room list requested by ${socket.id}`));
-      const rooms = await Room.find();
+      console.log(colorful.debug(`⚡ Room list requested by ${socket.id}`));
+      const rooms = await Room.find().sort({ lastActivity: -1 });
       const roomList = rooms.map(r => ({
         name: r.name,
         userCount: roomUsers.get(r.name)?.size || 0,
-        topic: r.topic
+        topic: r.topic,
+        lastActivity: r.lastActivity
       }));
       socket.emit('roomList', roomList);
-      console.log(colorful.success(`Sent room list to ${socket.id}`));
+      console.log(colorful.success(`✓ Sent room list to ${socket.id}`));
     } catch (err) {
-      console.log(colorful.error(`Error getting room list: ${err.message}`));
+      console.log(colorful.error(`✗ Error getting room list: ${err.message}`));
+      socket.emit('error', { message: 'Failed to get room list' });
     }
   });
 
-  // Join room
+  // Join room with enhanced functionality
   socket.on('joinRoom', async ({ roomName, username }) => {
     try {
-      console.log(colorful.debug(`Join room request: ${username} to ${roomName}`));
+      console.log(colorful.debug(`⚡ Join room request: ${username} to ${roomName}`));
 
       if (!roomName || !username) {
         throw new Error('Missing room name or username');
@@ -541,11 +471,9 @@ io.on('connection', async (socket) => {
         .forEach(room => {
           socket.leave(room);
           const users = roomUsers.get(room);
-          if (users) {
+          if (users && users.has(username)) {
             users.delete(username);
-            if (users.size === 0) {
-              roomUsers.delete(room);
-            }
+            if (users.size === 0) roomUsers.delete(room);
           }
         });
 
@@ -555,41 +483,69 @@ io.on('connection', async (socket) => {
       usersInRoom.add(username);
       roomUsers.set(roomName, usersInRoom);
 
+      // Update room participants if not already present
+      if (!room.participants.includes(username)) {
+        room.participants.push(username);
+        await room.save();
+      }
+
       // Confirm join to user
       socket.emit('roomJoined', {
         name: roomName,
         userCount: usersInRoom.size,
-        topic: room.topic
+        topic: room.topic,
+        participants: Array.from(usersInRoom)
       });
 
-      // Send room history
-      const messages = await Messsage.find({ room: room._id })
-        .sort({ createdAt: 1 })
+      // Send room history with read receipts
+      const messages = await Message.find({ room: room._id })
+        .sort({ createdAt: -1 })
         .limit(50);
-      socket.emit('roomHistory', messages);
+      
+      const messagesWithReadStatus = messages.map(msg => {
+        const receipt = readReceipts.get(msg._id.toString()) || new Set();
+        return {
+          ...msg.toObject(),
+          readBy: Array.from(receipt)
+        };
+      });
 
-      console.log(colorful.success(`${username} joined ${roomName} (${usersInRoom.size} users)`));
+      socket.emit('roomHistory', messagesWithReadStatus.reverse());
+
+      // Notify others in the room
+      socket.to(roomName).emit('userJoined', {
+        username,
+        userCount: usersInRoom.size
+      });
+
+      console.log(colorful.success(`✓ ${username} joined ${roomName} (${usersInRoom.size} users)`));
 
     } catch (err) {
-      console.log(colorful.error(`Join room error: ${err.message}`));
+      console.log(colorful.error(`✗ Join room error: ${err.message}`));
       socket.emit('roomError', { message: err.message });
     }
   });
 
+  // Create room with validation
   socket.on('createRoom', async ({ roomName, username }) => {
     try {
-      console.log(colorful.debug(`Create room request: ${roomName} by ${username}`));
+      console.log(colorful.debug(`⚡ Create room request: ${roomName} by ${username}`));
       
       if (!roomName || !username) {
-        console.log(colorful.error('Room creation failed - Missing fields'));
+        console.log(colorful.error('✗ Room creation failed - Missing fields'));
         return socket.emit('roomError', { message: 'Room name and username are required' });
+      }
+
+      // Validate room name
+      if (roomName.length > 30) {
+        return socket.emit('roomError', { message: 'Room name must be 30 characters or less' });
       }
 
       const formattedName = roomName.trim().toLowerCase().replace(/\s+/g, '-');
       const existingRoom = await Room.findOne({ name: formattedName });
 
       if (existingRoom) {
-        console.log(colorful.error(`Room ${formattedName} already exists`));
+        console.log(colorful.error(`✗ Room ${formattedName} already exists`));
         return socket.emit('roomError', { message: 'Room already exists' });
       }
 
@@ -597,7 +553,8 @@ io.on('connection', async (socket) => {
         name: formattedName,
         createdBy: username,
         participants: [username],
-        topic: `Chat about ${formattedName}`
+        topic: `Chat about ${formattedName}`,
+        lastActivity: new Date()
       });
 
       // Join the room immediately after creation
@@ -608,11 +565,12 @@ io.on('connection', async (socket) => {
       roomUsers.set(formattedName, usersInRoom);
 
       // Get updated room list
-      const rooms = await Room.find();
+      const rooms = await Room.find().sort({ lastActivity: -1 });
       const roomList = rooms.map(r => ({
         name: r.name,
         userCount: roomUsers.get(r.name)?.size || 0,
-        topic: r.topic
+        topic: r.topic,
+        lastActivity: r.lastActivity
       }));
       
       // Emit to all clients
@@ -622,239 +580,356 @@ io.on('connection', async (socket) => {
       socket.emit('roomJoined', {
         name: room.name,
         userCount: 1,
-        topic: room.topic
+        topic: room.topic,
+        participants: [username]
       });
 
-      console.log(colorful.success(`Room "${formattedName}" created by ${username}`));
+      console.log(colorful.success(`✓ Room "${formattedName}" created by ${username}`));
     } catch (err) {
-      console.log(colorful.error(`Room creation error: ${err.message}`));
+      console.log(colorful.error(`✗ Room creation error: ${err.message}`));
       socket.emit('roomError', { message: 'Failed to create room' });
     }
   });
 
-  // Enhanced message handling with file support
-  socket.on('sendMessage', async (message) => {
+  // Enhanced message handling with file support and read receipts
+socket.on('sendMessage', async (messageData) => {
     try {
-      const username = activeUsers.get(socket.id) || 'Anonymous';
-      const roomName = Array.from(socket.rooms).find(r => r !== socket.id);
-      
-      if (!roomName) {
-        console.log(colorful.warn(`User ${username} tried to send message without joining a room`));
-        return;
-      }
-      
-      const roomDoc = await Room.findOne({ name: roomName });
-      if (!roomDoc) {
-        console.log(colorful.error(`Room ${roomName} not found in database`));
-        return;
-      }
-      
-      // Create message document with proper fields
-      const messageData = {
-        content: message.content,
-        room: roomDoc._id,
-        roomName: roomName,
-        username: username,
-        time: new Date(),
-        readBy: [username],
-        deletedFor: []
-      };
+        const username = activeUsers.get(socket.id);
+        if (!username) {
+            console.log(colorful.error('✗ Unauthenticated user tried to send message'));
+            return socket.emit('error', { message: 'Authentication required' });
+        }
+        
+        const roomName = Array.from(socket.rooms).find(r => r !== socket.id);
+        
+        if (!roomName) {
+            console.log(colorful.warn(`⚠ User ${username} tried to send message without joining a room`));
+            return socket.emit('error', { message: 'Join a room first' });
+        }
+        
+        const roomDoc = await Room.findOne({ name: roomName });
+        if (!roomDoc) {
+            console.log(colorful.error(`✗ Room ${roomName} not found in database`));
+            return socket.emit('error', { message: 'Room not found' });
+        }
+        
+        // Validate message content or file
+        if (!messageData.content && !messageData.file) {
+            console.log(colorful.error('✗ Empty message attempted'));
+            return socket.emit('error', { message: 'Message content or file required' });
+        }
 
-      // Add file information if present
-      if (message.file) {
-        messageData.file = {
-          url: message.file.url,
-          name: message.file.name,
-          type: message.file.type,
-          size: message.file.size,
-          fileType: getFileType(message.file.type),
-          deleted: false
+        // Create message document according to your model
+        const message = {
+            content: messageData.content,
+            room: roomDoc._id,
+            roomName: roomName, // Added to match your model
+            username: username,
+            time: new Date()
         };
-        console.log(colorful.success(`File attached: ${message.file.name}`));
-        console.log(colorful.debug(`File type: ${message.file.type}, size: ${message.file.size} bytes`));
-      }
-      
-      // Save message to database
-      const savedMessage = await Messsage.create(messageData);
-      
-      // Update room's last activity
-      roomDoc.lastActivity = new Date();
-      await roomDoc.save();
-      
-      // Emit message with consistent field names
-      const messageToEmit = {
-        _id: savedMessage._id,
-        username: username,
-        content: message.content,
-        time: savedMessage.time,
-        room: roomName,
-        readBy: savedMessage.readBy,
-        file: savedMessage.file
-      };
 
-      io.to(roomName).emit('message', messageToEmit);
-      
-      console.log(colorful.debug(`Message from ${username} in ${roomName}: ${message.content ? message.content.substring(0, 20) + '...' : 'File message'}`));
+        // Add file information if present
+        if (messageData.file) {
+            message.file = {
+                url: messageData.file.url,
+                name: messageData.file.name,
+                type: messageData.file.type,
+                size: messageData.file.size
+            };
+            console.log(colorful.success(`✓ File attached: ${messageData.file.name}`));
+        }
+        
+        // Save message to database
+        const savedMessage = await Message.create(message);
+        
+        // Update room's last activity
+        roomDoc.lastActivity = new Date();
+        await roomDoc.save();
+        
+        // Prepare message to emit with read receipts
+        const messageToEmit = {
+            _id: savedMessage._id,
+            username: username,
+            content: savedMessage.content,
+            time: savedMessage.time,
+            room: roomName,
+            roomName: roomName, // For consistency with your model
+            readBy: savedMessage.readBy || [] // Use the array from model
+        };
+
+        // Add file to emitted message if present
+        if (savedMessage.file) {
+            messageToEmit.file = savedMessage.file;
+        }
+        
+        // Update read receipts tracking (modified for your array storage)
+        if (!savedMessage.readBy.includes(username)) {
+            savedMessage.readBy.push(username);
+            await savedMessage.save();
+        }
+        
+        // Emit to room including sender (for consistency)
+        io.to(roomName).emit('message', messageToEmit);
+        
+        console.log(colorful.debug(`⚡ Message from ${username} in ${roomName}: ${messageData.content ? messageData.content.substring(0, 20) + '...' : 'File message'}`));
     } catch (err) {
-      console.log(colorful.error(`Message send error: ${err.message}`));
+        console.log(colorful.error(`✗ Message send error: ${err.message}`));
+        socket.emit('error', { message: 'Failed to send message' });
     }
-  });
+});
 
-  // File download request handler
-  socket.on('downloadFile', async ({ messageId }) => {
+
+io.sockets.setMaxListeners(50); 
+
+// Update the read receipt handler to match your model
+socket.on('messageRead', async ({ messageId }) => {
     try {
-      const message = await Messsage.findById(messageId);
-      if (!message || !message.file || message.file.deleted) {
-        return socket.emit('fileError', { message: 'File not available' });
-      }
-
-      const filename = message.file.url.split('/').pop();
-      const downloadUrl = `http://${socket.handshake.headers.host}/download/${filename}`;
+        const username = activeUsers.get(socket.id);
+        if (!username) {
+            console.log(colorful.error('✗ Unauthenticated user tried to send read receipt'));
+            return;
+        }
+        
+        if (!messageId) {
+            console.log(colorful.error('✗ Empty messageId for read receipt'));
+            return;
+        }
+        
+        // Get the message to validate it exists
+        const message = await Message.findById(messageId);
+        if (!message) {
+            console.log(colorful.error(`✗ Message ${messageId} not found for read receipt`));
+            return;
+        }
+        
+        // Update read receipts (using your array storage)
+        if (!message.readBy.includes(username)) {
+            message.readBy.push(username);
+            await message.save();
+        }
+        
+        // Notify all clients in the room
+        const roomDoc = await Room.findById(message.room);
+        if (roomDoc) {
+            io.to(roomDoc.name).emit('readUpdate', {
+                messageId,
+                readBy: message.readBy
+            });
+        }
+        
+        console.log(colorful.debug(`⚡ Read receipt from ${username} for message ${messageId}`));
+    } catch (err) {
+        console.log(colorful.error(`✗ Read receipt error: ${err.message}`));
+    }
+});
+  // File download handler with proper MIME types
+  socket.on('downloadFile', ({ fileUrl, fileName, fileType }) => {
+    try {
+      console.log(colorful.debug(`⚡ File download requested: ${fileUrl}`));
       
-      socket.emit('fileDownloadReady', { 
-        url: downloadUrl,
-        filename: filename,
-        originalName: message.file.name
+      // Validate the file URL to prevent directory traversal
+      const normalizedPath = path.normalize(fileUrl).replace(/^(\.\.(\/|\\|$))+/g, '');
+      const fullPath = path.join(__dirname, 'uploads', normalizedPath);
+      
+      if (!fs.existsSync(fullPath)) {
+        console.log(colorful.error(`✗ File not found: ${fileUrl}`));
+        return socket.emit('error', { message: 'File not found' });
+      }
+      
+      // Determine if we should open or download based on file type
+      const shouldOpen = [
+        'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+        'video/mp4', 'video/webm', 'video/quicktime',
+        'audio/mpeg', 'audio/wav', 'audio/ogg',
+        'application/pdf'
+      ].includes(fileType);
+      
+      socket.emit('fileAction', { 
+        action: shouldOpen ? 'open' : 'download',
+        url: fileUrl,
+        name: fileName,
+        type: fileType 
       });
       
-      console.log(colorful.success(`File download prepared: ${message.file.name}`));
+      console.log(colorful.success(`✓ File ${shouldOpen ? 'opened' : 'downloaded'}: ${fileUrl}`));
     } catch (err) {
-      console.log(colorful.error(`File download error: ${err.message}`));
-      socket.emit('fileError', { message: 'Download failed' });
+      console.log(colorful.error(`✗ File download error: ${err.message}`));
+      socket.emit('error', { message: 'File action failed' });
     }
   });
 
-  // File deletion handler
-  socket.on('deleteFile', async ({ messageId }) => {
+  // Message read receipt handler
+  socket.on('messageRead', async ({ messageId }) => {
     try {
-      const message = await Messsage.findById(messageId);
-      if (!message?.file) return;
-
-      const filename = message.file.url.split('/').pop();
-      const filePath = path.join(uploadDir, filename);
-
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-      }
-
-      message.file.deleted = true;
-      await message.save();
-
-      io.to(message.roomName).emit('fileDeleted', { messageId });
-    } catch (err) {
-      console.log(colorful.error(`File deletion error: ${err.message}`));
-    }
-  });
-
-  // Mark message as read
-  socket.on('markAsRead', async ({ messageId, username }) => {
-    try {
-      console.log(colorful.debug(`Marking message ${messageId} as read by ${username}`));
-      const message = await Messsage.findById(messageId);
-      if (!message) {
-        console.log(colorful.error(`Message ${messageId} not found`));
+      const username = activeUsers.get(socket.id);
+      if (!username) {
+        console.log(colorful.error('✗ Unauthenticated user tried to send read receipt'));
         return;
       }
       
-      if (!message.readBy.includes(username)) {
-        message.readBy.push(username);
-        await message.save();
-        
-        const senderSockets = userSockets.get(message.username);
-        if (senderSockets) {
-          senderSockets.forEach(sockId => {
-            io.to(sockId).emit('messageRead', { messageId, readBy: message.readBy });
-          });
-        }
-        
-        console.log(colorful.success(`Message ${messageId} marked as read by ${username}`));
-      }
-    } catch (err) {
-      console.log(colorful.error(`Error marking message as read: ${err.message}`));
-    }
-  });
-
-  // Delete message
-  socket.on('deleteMessage', async ({ messageId, deleteForAll, username }) => {
-    try {
-      console.log(colorful.debug(`Deleting message ${messageId} (for all: ${deleteForAll}) by ${username}`));
-      const message = await Messsage.findById(messageId);
-      if (!message) {
-        console.log(colorful.error(`Message ${messageId} not found`));
+      if (!messageId) {
+        console.log(colorful.error('✗ Empty messageId for read receipt'));
         return;
       }
       
-      if (deleteForAll) {
-        await Messsage.deleteOne({ _id: messageId });
-        io.to(message.roomName).emit('messageDeleted', { messageId });
-        console.log(colorful.success(`Message ${messageId} deleted for everyone by ${username}`));
-      } else {
-        if (!message.deletedFor.includes(username)) {
-          message.deletedFor.push(username);
-          await message.save();
-          socket.emit('messageDeletedForMe', { messageId });
-          console.log(colorful.success(`Message ${messageId} deleted for ${username}`));
-        }
+      // Get the message to validate it exists
+      const message = await Message.findById(messageId);
+      if (!message) {
+        console.log(colorful.error(`✗ Message ${messageId} not found for read receipt`));
+        return;
       }
+      
+      // Update read receipts
+      const receipts = readReceipts.get(messageId) || new Set();
+      receipts.add(username);
+      readReceipts.set(messageId, receipts);
+      
+      // Notify all clients in the room
+      const roomDoc = await Room.findById(message.room);
+      if (roomDoc) {
+        io.to(roomDoc.name).emit('readUpdate', {
+          messageId,
+          readBy: Array.from(receipts)
+        });
+      }
+      
+      console.log(colorful.debug(`⚡ Read receipt from ${username} for message ${messageId}`));
     } catch (err) {
-      console.log(colorful.error(`Error deleting message: ${err.message}`));
+      console.log(colorful.error(`✗ Read receipt error: ${err.message}`));
     }
   });
+
+  // Message deletion handler
+ 
+        socket.on('deleteMessage', async ({ messageId, deleteForEveryone }) => {
+            try {
+                const username = activeUsers.get(socket.id);
+                if (!username) {
+                    console.log(colorful.error('✗ Unauthenticated user tried to delete message'));
+                    return socket.emit('error', { message: 'Authentication required' });
+                }
+                
+                const message = await Message.findById(messageId);
+                if (!message) {
+                    console.log(colorful.error(`✗ Message ${messageId} not found`));
+                    return socket.emit('error', { message: 'Message not found' });
+                }
+                
+                // Check if user is the sender or has admin privileges
+                const canDeleteForEveryone = message.username === username || isAdmin(username);
+                
+                if (deleteForEveryone && !canDeleteForEveryone) {
+                    console.log(colorful.error(`✗ User ${username} tried to delete message for everyone without permission`));
+                    return socket.emit('error', { message: 'Not authorized for this action' });
+                }
+                
+                const room = await Room.findById(message.room);
+                if (!room) {
+                    console.log(colorful.error(`✗ Room not found for message ${messageId}`));
+                    return socket.emit('error', { message: 'Room not found' });
+                }
+                
+                if (deleteForEveryone) {
+                    // Delete for everyone - remove from database
+                    await Message.deleteOne({ _id: messageId });
+                    readReceipts.delete(messageId);
+                    console.log(colorful.success(`✓ Message ${messageId} deleted for everyone by ${username}`));
+                } else {
+                    // Delete for sender only - mark as deleted
+                    message.deletedFor = message.deletedFor || [];
+                    if (!message.deletedFor.includes(username)) {
+                        message.deletedFor.push(username);
+                        await message.save();
+                    }
+                    console.log(colorful.success(`✓ Message ${messageId} deleted for sender ${username}`));
+                }
+                
+                // Enhanced notification with more details
+                io.to(room.name).emit('messageDeleted', {
+                    messageId,
+                    deletedForEveryone,
+                    deletedBy: username,
+                    deletedFor: deleteForEveryone ? [] : message.deletedFor,
+                    timestamp: new Date()
+                });
+                
+            } catch (err) {
+                console.log(colorful.error(`✗ Message deletion error: ${err.message}`));
+                socket.emit('error', { 
+                    message: 'Failed to delete message',
+                    details: err.message 
+                });
+            }
+        });
 
   // Typing indicators
   socket.on('typing', ({ room }) => {
-    const username = activeUsers.get(socket.id) || 'Anonymous';
+    const username = activeUsers.get(socket.id);
+    if (!username) return;
+    
     io.to(room).emit('typing', { username, room });
-    console.log(colorful.debug(`${username} is typing in ${room}`));
+    console.log(colorful.debug(`⚡ ${username} is typing in ${room}`));
   });
 
   socket.on('stopTyping', ({ room }) => {
-    const username = activeUsers.get(socket.id) || 'Anonymous';
+    const username = activeUsers.get(socket.id);
+    if (!username) return;
+    
     io.to(room).emit('stopTyping', { username, room });
-    console.log(colorful.debug(`${username} stopped typing in ${room}`));
+    console.log(colorful.debug(`⚡ ${username} stopped typing in ${room}`));
   });
 
-  // Disconnection handler
+  // Disconnection handler with cleanup
   socket.on('disconnect', (reason) => {
     const username = activeUsers.get(socket.id);
     if (username) {
-      console.log(colorful.warn(`User ${username} disconnected: ${reason}`));
+      console.log(colorful.warn(`⚠ User ${username} disconnected: ${reason}`));
       
-      // Remove user from all rooms
-      roomUsers.forEach((users, room) => {
-        if (users.has(username)) {
-          users.delete(username);
-          if (users.size === 0) {
-            roomUsers.delete(room);
-          } else {
-            roomUsers.set(room, users);
-          }
-          console.log(colorful.debug(`User ${username} was removed from room ${room}`));
-        }
-      });
-      
-      // Remove socket from userSockets
+      // Remove socket from user's sockets
       if (userSockets.has(username)) {
         const sockets = userSockets.get(username);
         sockets.delete(socket.id);
+        
+        // If this was the last socket for the user, remove from rooms
         if (sockets.size === 0) {
           userSockets.delete(username);
+          
+          // Remove user from all rooms
+          roomUsers.forEach((users, room) => {
+            if (users.has(username)) {
+              users.delete(username);
+              if (users.size === 0) {
+                roomUsers.delete(room);
+              } else {
+                roomUsers.set(room, users);
+              }
+              
+              // Notify remaining users in the room
+              io.to(room).emit('userLeft', {
+                username,
+                userCount: users.size
+              });
+              
+              console.log(colorful.debug(`⚡ User ${username} was removed from room ${room}`));
+            }
+          });
         }
       }
       
       activeUsers.delete(socket.id);
       
       // Update room list for remaining users
-      Room.find().then(rooms => {
+      Room.find().sort({ lastActivity: -1 }).then(rooms => {
         const roomList = rooms.map(r => ({
           name: r.name,
           userCount: roomUsers.get(r.name)?.size || 0,
-          topic: r.topic
+          topic: r.topic,
+          lastActivity: r.lastActivity
         }));
         io.emit('roomList', roomList);
       });
     } else {
-      console.log(colorful.warn(`Anonymous user disconnected: ${reason}`));
+      console.log(colorful.warn(`⚠ Anonymous user disconnected: ${reason}`));
     }
   });
 
@@ -865,28 +940,28 @@ io.on('connection', async (socket) => {
     
     socket.once('💗', () => {
       const latency = Date.now() - start;
-      console.log(colorful.debug(`Heartbeat from ${socket.id} (${latency}ms)`));
+      console.log(colorful.debug(`⚡ Heartbeat from ${socket.id} (${latency}ms)`));
     });
   }, 10000);
 
   socket.on('disconnect', () => {
     clearInterval(pingInterval);
-    console.log(colorful.debug(`Heartbeat monitor stopped for ${socket.id}`));
+    console.log(colorful.debug(`⚡ Heartbeat monitor stopped for ${socket.id}`));
   });
 });
 
-// Admin UI
+// MODIFIED: Admin UI with environment variables
 instrument(io, {
   auth: {
     type: "basic",
-    username: "admin",
-    password: bcrypt.hashSync("password", 10)
+    username: process.env.ADMIN_USERNAME || "admin",
+    password: bcrypt.hashSync(process.env.ADMIN_PASSWORD || "password", 10)
   },
-  mode: process.env.NODE_ENV === 'production' ? 'production' : 'development',
+  mode: isProduction ? 'production' : 'development',
   namespaceName: "/admin"
 });
 
-// Start the server
+// Start the server with production-ready config
 connectDB().then(async () => {
   await initializeDefaultRooms();
   
@@ -914,6 +989,6 @@ connectDB().then(async () => {
     `);
   });
 }).catch(err => {
-  console.log(colorful.error(`Database connection failed: ${err.message}`));
+  console.log(colorful.error(`✗ Database connection failed: ${err.message}`));
   process.exit(1);
 });
