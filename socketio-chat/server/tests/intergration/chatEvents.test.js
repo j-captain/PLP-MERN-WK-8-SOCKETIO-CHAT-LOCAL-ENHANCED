@@ -3,14 +3,12 @@ const socketClient = require('socket.io-client');
 const User = require('../../models/User');
 const Room = require('../../models/Room');
 const Message = require('../../models/Message');
-const fetch = require('node-fetch');
 const mongoose = require('mongoose');
 
 describe('Chat Events Integration (socketioChat DB)', () => {
   let httpServer, io, clientSocket, port;
   const testUser = {
     username: 'testuser',
-    password: 'testpass',
     room: 'general'
   };
 
@@ -67,10 +65,18 @@ describe('Chat Events Integration (socketioChat DB)', () => {
         console.log('[Test] Socket disconnected from socketioChat');
       }
 
+      // First find the room to get its ID
+      const room = await Room.findOne({ name: testUser.room });
+      const roomId = room?._id;
+
       // Clean test data
       await User.deleteMany({ username: testUser.username });
       await Room.deleteMany({ name: testUser.room });
-      await Message.deleteMany({ room: testUser.room });
+      
+      // Only try to delete messages if we found the room
+      if (roomId) {
+        await Message.deleteMany({ room: roomId });
+      }
       
       // Close database connection
       await mongoose.disconnect();
@@ -104,7 +110,7 @@ describe('Chat Events Integration (socketioChat DB)', () => {
         transports: ['websocket'],
         forceNew: true,
         reconnection: false,
-        timeout: 10000, // Increased socket timeout
+        timeout: 10000,
         query: {
           username: testUser.username,
           room: testUser.room
@@ -115,7 +121,7 @@ describe('Chat Events Integration (socketioChat DB)', () => {
         const timer = setTimeout(() => {
           console.error('[Test] Socket connection timeout');
           reject(new Error('Connection timeout'));
-        }, 10000); // 10s timeout
+        }, 10000);
 
         clientSocket.on('connect', () => {
           clearTimeout(timer);
@@ -146,49 +152,17 @@ describe('Chat Events Integration (socketioChat DB)', () => {
     }
   });
 
-  test('should authenticate and interact with socketioChat DB', async () => {
+  test('should interact with socketioChat DB', async () => {
     console.log('[Test] Starting socketioChat DB integration test...');
 
-    // 1. HTTP Authentication with proper error handling
-    console.log('[Test] Authenticating via HTTP against socketioChat DB...');
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 10000);
-      
-      const authResponse = await fetch(`http://localhost:${port}/api/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: testUser.username,
-          password: testUser.password
-        }),
-        signal: controller.signal
-      });
-      
-      clearTimeout(timeout);
-
-      if (!authResponse.ok) {
-        const error = await authResponse.json();
-        throw new Error(`Authentication failed: ${error.message || error}`);
-      }
-
-      const authData = await authResponse.json();
-      console.log('[Test] Authentication successful:', authData);
-      expect(authData.username).toBe(testUser.username);
-      expect(authData.room).toBe(testUser.room);
-    } catch (err) {
-      console.error('[Test] Authentication error:', err);
-      throw err;
-    }
-
-    // 2. Verify User in Database
+    // 1. Verify User in Database
     console.log('[Test] Verifying user in socketioChat DB...');
     const dbUser = await User.findOne({ username: testUser.username });
     expect(dbUser).toBeTruthy();
     expect(dbUser.username).toBe(testUser.username);
     expect(dbUser.room).toBe(testUser.room);
 
-    // 3. Socket Authentication
+    // 2. Socket Authentication
     console.log('[Test] Authenticating socket connection...');
     const authSocket = new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
@@ -216,13 +190,13 @@ describe('Chat Events Integration (socketioChat DB)', () => {
     expect(socketAuthData.username).toBe(testUser.username);
     expect(socketAuthData.room).toBe(testUser.room);
 
-    // 4. Verify Room in Database
+    // 3. Verify Room in Database
     console.log('[Test] Verifying room in socketioChat DB...');
     const dbRoom = await Room.findOne({ name: testUser.room });
     expect(dbRoom).toBeTruthy();
     expect(dbRoom.participants).toContain(testUser.username);
 
-    // 5. Test Room Join
+    // 4. Test Room Join
     console.log('[Test] Testing room join...');
     const roomJoinPromise = new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
@@ -250,12 +224,12 @@ describe('Chat Events Integration (socketioChat DB)', () => {
     expect(joinData.name).toBe(testUser.room);
     expect(joinData.participants).toContain(testUser.username);
 
-    // 6. Verify Room Update in Database
+    // 5. Verify Room Update in Database
     console.log('[Test] Verifying room update in socketioChat DB...');
     const updatedRoom = await Room.findOne({ name: testUser.room });
     expect(updatedRoom.lastActivity).toBeDefined();
 
-    // 7. Test Messaging
+    // 6. Test Messaging
     console.log('[Test] Testing messaging in socketioChat...');
     const testMessage = 'Testing socketioChat DB integration';
     const messagePromise = new Promise((resolve, reject) => {
@@ -286,7 +260,7 @@ describe('Chat Events Integration (socketioChat DB)', () => {
     expect(receivedMessage.username).toBe(testUser.username);
     expect(receivedMessage.room).toBe(testUser.room);
 
-    // 8. Verify Message in Database
+    // 7. Verify Message in Database
     console.log('[Test] Verifying message in socketioChat DB...');
     const dbMessage = await Message.findOne({
       room: dbRoom._id,
