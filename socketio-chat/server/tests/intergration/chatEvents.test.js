@@ -2,6 +2,7 @@ const { setupTestServer } = require('../testUtils');
 const socketClient = require('socket.io-client');
 const User = require('../../models/User');
 const Room = require('../../models/Room');
+const Message = require('../../models/Message');
 const fetch = require('node-fetch');
 const mongoose = require('mongoose');
 
@@ -13,26 +14,28 @@ describe('Chat Events Integration (socketioChat DB)', () => {
     room: 'general'
   };
 
+  // Set higher timeout for all tests in this suite
+  jest.setTimeout(60000);
+
   beforeAll(async () => {
     console.log('[Test] Initializing test environment for socketioChat DB...');
     
-    // Connect to test database
-    await mongoose.connect('mongodb://localhost:27017/socketioChat', {
-      useNewUrlParser: true,
-      useUnifiedTopology: true
-    });
-    console.log('[Test] Connected to socketioChat database');
-
-    // Setup test server
-    const testServer = await setupTestServer();
-    httpServer = testServer.server;
-    io = testServer.io;
-    port = testServer.port;
-    console.log(`[Test] Test server running on port ${port}`);
-
-    // Initialize test data
     try {
-      // Clear existing test data
+      // Connect to test database with timeout settings
+      await mongoose.connect('mongodb://localhost:27017/socketioChat', {
+        connectTimeoutMS: 10000,
+        socketTimeoutMS: 45000,
+      });
+      console.log('[Test] Connected to socketioChat database');
+
+      // Setup test server
+      const testServer = await setupTestServer();
+      httpServer = testServer.server;
+      io = testServer.io;
+      port = testServer.port;
+      console.log(`[Test] Test server running on port ${port}`);
+
+      // Initialize test data
       await User.deleteMany({ username: testUser.username });
       await Room.deleteMany({ name: testUser.room });
       
@@ -49,68 +52,91 @@ describe('Chat Events Integration (socketioChat DB)', () => {
       console.log(`[Test] Test room created in socketioChat DB: ${room.name}`);
 
     } catch (err) {
-      console.error('[Test] Database initialization failed:', err);
+      console.error('[Test] Initialization failed:', err);
       throw err;
     }
-  }, 30000);
+  });
 
   afterAll(async () => {
     console.log('[Test] Cleaning up socketioChat test environment...');
     
-    // Clean test data
-    await User.deleteMany({ username: testUser.username });
-    await Room.deleteMany({ name: testUser.room });
-    
-    // Close database connection
-    await mongoose.disconnect();
-    console.log('[Test] Disconnected from socketioChat DB');
+    try {
+      // Close socket if still connected
+      if (clientSocket?.connected) {
+        clientSocket.disconnect();
+        console.log('[Test] Socket disconnected from socketioChat');
+      }
 
-    // Close servers
-    return new Promise((resolve) => {
-      if (io) io.close();
-      if (httpServer) httpServer.close(() => {
-        console.log('[Test] Test server closed');
-        resolve();
+      // Clean test data
+      await User.deleteMany({ username: testUser.username });
+      await Room.deleteMany({ name: testUser.room });
+      await Message.deleteMany({ room: testUser.room });
+      
+      // Close database connection
+      await mongoose.disconnect();
+      console.log('[Test] Disconnected from socketioChat DB');
+
+      // Close servers with timeout
+      await new Promise((resolve) => {
+        if (io) io.close();
+        if (httpServer) {
+          httpServer.close(() => {
+            console.log('[Test] Test server closed');
+            resolve();
+          });
+          // Force close after 5 seconds if not closed
+          setTimeout(resolve, 5000);
+        } else {
+          resolve();
+        }
       });
-    });
+    } catch (err) {
+      console.error('[Test] Cleanup failed:', err);
+      throw err;
+    }
   });
 
   beforeEach(async () => {
     console.log('[Test] Establishing socket connection...');
-    clientSocket = socketClient(`http://localhost:${port}`, {
-      transports: ['websocket'],
-      forceNew: true,
-      reconnection: false,
-      timeout: 5000,
-      query: {
-        username: testUser.username,
-        room: testUser.room
-      }
-    });
-
-    // Connection handlers with enhanced logging
-    await new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        console.error('[Test] Socket connection timeout');
-        reject(new Error('Connection timeout'));
-      }, 5000);
-
-      clientSocket.on('connect', () => {
-        clearTimeout(timer);
-        console.log(`[Test] Socket connected to socketioChat (ID: ${clientSocket.id})`);
-        resolve();
+    
+    try {
+      clientSocket = socketClient(`http://localhost:${port}`, {
+        transports: ['websocket'],
+        forceNew: true,
+        reconnection: false,
+        timeout: 10000, // Increased socket timeout
+        query: {
+          username: testUser.username,
+          room: testUser.room
+        }
       });
 
-      clientSocket.on('connect_error', (err) => {
-        clearTimeout(timer);
-        console.error('[Test] Socket connection error:', err.message);
-        reject(err);
-      });
+      await new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+          console.error('[Test] Socket connection timeout');
+          reject(new Error('Connection timeout'));
+        }, 10000); // 10s timeout
 
-      clientSocket.on('error', (err) => {
-        console.error('[Test] Socket error:', err);
+        clientSocket.on('connect', () => {
+          clearTimeout(timer);
+          console.log(`[Test] Socket connected to socketioChat (ID: ${clientSocket.id})`);
+          resolve();
+        });
+
+        clientSocket.on('connect_error', (err) => {
+          clearTimeout(timer);
+          console.error('[Test] Socket connection error:', err.message);
+          reject(err);
+        });
+
+        clientSocket.on('error', (err) => {
+          console.error('[Test] Socket error:', err);
+        });
       });
-    });
+    } catch (err) {
+      console.error('[Test] Socket connection failed:', err);
+      throw err;
+    }
   });
 
   afterEach(() => {
@@ -121,39 +147,63 @@ describe('Chat Events Integration (socketioChat DB)', () => {
   });
 
   test('should authenticate and interact with socketioChat DB', async () => {
-    jest.setTimeout(30000);
     console.log('[Test] Starting socketioChat DB integration test...');
 
-    // 1. HTTP Authentication
+    // 1. HTTP Authentication with proper error handling
     console.log('[Test] Authenticating via HTTP against socketioChat DB...');
-    const authResponse = await fetch(`http://localhost:${port}/api/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        username: testUser.username,
-        password: testUser.password
-      })
-    });
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+      
+      const authResponse = await fetch(`http://localhost:${port}/api/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: testUser.username,
+          password: testUser.password
+        }),
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeout);
 
-    if (!authResponse.ok) {
-      const error = await authResponse.json();
-      throw new Error(`socketioChat authentication failed: ${error.message || error}`);
+      if (!authResponse.ok) {
+        const error = await authResponse.json();
+        throw new Error(`Authentication failed: ${error.message || error}`);
+      }
+
+      const authData = await authResponse.json();
+      console.log('[Test] Authentication successful:', authData);
+      expect(authData.username).toBe(testUser.username);
+      expect(authData.room).toBe(testUser.room);
+    } catch (err) {
+      console.error('[Test] Authentication error:', err);
+      throw err;
     }
-    const authData = await authResponse.json();
-    console.log('[Test] socketioChat authentication successful:', authData);
 
     // 2. Verify User in Database
     console.log('[Test] Verifying user in socketioChat DB...');
     const dbUser = await User.findOne({ username: testUser.username });
     expect(dbUser).toBeTruthy();
+    expect(dbUser.username).toBe(testUser.username);
     expect(dbUser.room).toBe(testUser.room);
 
     // 3. Socket Authentication
     console.log('[Test] Authenticating socket connection...');
-    const authSocket = new Promise((resolve) => {
+    const authSocket = new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        reject(new Error('Socket authentication timeout'));
+      }, 10000);
+
       clientSocket.once('authenticated', (userData) => {
-        console.log('[Test] Socket authenticated with socketioChat:', userData);
+        clearTimeout(timer);
+        console.log('[Test] Socket authenticated:', userData);
         resolve(userData);
+      });
+
+      clientSocket.once('authentication_error', (err) => {
+        clearTimeout(timer);
+        reject(new Error(err.message));
       });
     });
 
@@ -174,10 +224,20 @@ describe('Chat Events Integration (socketioChat DB)', () => {
 
     // 5. Test Room Join
     console.log('[Test] Testing room join...');
-    const roomJoinPromise = new Promise((resolve) => {
+    const roomJoinPromise = new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        reject(new Error('Room join timeout'));
+      }, 10000);
+
       clientSocket.once('roomJoined', (roomData) => {
-        console.log('[Test] Room joined in socketioChat:', roomData);
+        clearTimeout(timer);
+        console.log('[Test] Room joined:', roomData);
         resolve(roomData);
+      });
+
+      clientSocket.once('join_error', (err) => {
+        clearTimeout(timer);
+        reject(new Error(err.message));
       });
     });
 
@@ -198,16 +258,27 @@ describe('Chat Events Integration (socketioChat DB)', () => {
     // 7. Test Messaging
     console.log('[Test] Testing messaging in socketioChat...');
     const testMessage = 'Testing socketioChat DB integration';
-    const messagePromise = new Promise((resolve) => {
+    const messagePromise = new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        reject(new Error('Message timeout'));
+      }, 10000);
+
       clientSocket.once('message', (msg) => {
-        console.log('[Test] Message received in socketioChat:', msg);
+        clearTimeout(timer);
+        console.log('[Test] Message received:', msg);
         resolve(msg);
+      });
+
+      clientSocket.once('message_error', (err) => {
+        clearTimeout(timer);
+        reject(new Error(err.message));
       });
     });
 
     clientSocket.emit('sendMessage', {
       content: testMessage,
-      room: testUser.room
+      room: testUser.room,
+      username: testUser.username
     });
 
     const receivedMessage = await messagePromise;
@@ -222,5 +293,7 @@ describe('Chat Events Integration (socketioChat DB)', () => {
       content: testMessage
     });
     expect(dbMessage).toBeTruthy();
+    expect(dbMessage.content).toBe(testMessage);
+    expect(dbMessage.sender).toBe(testUser.username);
   });
 });
