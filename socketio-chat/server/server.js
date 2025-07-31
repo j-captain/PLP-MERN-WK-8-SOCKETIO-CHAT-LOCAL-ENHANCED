@@ -1,5 +1,5 @@
 require('dotenv').config();
-require('events').EventEmitter.defaultMaxListeners = 20;
+require('events').EventEmitter.defaultMaxListeners = 100;
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -378,7 +378,7 @@ const io = process.env.NODE_ENV === 'test'
       path: '/socket.io'
     });
 
-io.sockets.setMaxListeners(20);
+io.sockets.setMaxListeners(100);
 
 // Socket.IO middleware
 io.use((socket, next) => {
