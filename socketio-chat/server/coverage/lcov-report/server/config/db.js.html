@@ -23,30 +23,30 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">59.37% </span>
+                <span class="strong">15.62% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>19/32</span>
+                <span class='fraction'>5/32</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">33.33% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>6/18</span>
+                <span class='fraction'>0/18</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">33.33% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>1/3</span>
+                <span class='fraction'>0/3</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">59.37% </span>
+                <span class="strong">15.62% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>19/32</span>
+                <span class='fraction'>5/32</span>
             </div>
         
             
@@ -61,7 +61,7 @@
             </div>
         </template>
     </div>
-    <div class='status-line medium'></div>
+    <div class='status-line low'></div>
     <pre><table class="coverage">
 <tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
 <a name='L2'></a><a href='#L2'>2</a>
@@ -131,18 +131,18 @@
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -150,20 +150,20 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -194,19 +194,19 @@
 <span class="cline-any cline-yes">1x</span></td><td class="text"><pre class="prettyprint lang-js">const mongoose = require('mongoose');
 const colorful = require('../utils/colorful'); // Assuming you have this colorful logger
 &nbsp;
-const connectDB = async () =&gt; {
-  try {
+const connectDB = <span class="fstat-no" title="function not covered" >as</span>ync () =&gt; {
+<span class="cstat-no" title="statement not covered" >  try {</span>
     // Determine which database to use based on environment
-    const mongoURI = process.env.NODE_ENV === 'test'
+    const mongoURI = <span class="cstat-no" title="statement not covered" >process.env.NODE_ENV === 'test'</span>
       ? process.env.MONGO_URI_TEST || 'mongodb://localhost:27017/chat-app-test'
-      : <span class="branch-1 cbranch-no" title="branch not covered" >process.env.MONGO_URI || 'mongodb://localhost:27017/chat-app';</span>
+      : process.env.MONGO_URI || 'mongodb://localhost:27017/chat-app';
 &nbsp;
-    <span class="missing-if-branch" title="if path not taken" >I</span>if (!mongoURI) {
+<span class="cstat-no" title="statement not covered" >    if (!mongoURI) {</span>
 <span class="cstat-no" title="statement not covered" >      throw new Error('MongoDB URI not configured in environment variables');</span>
     }
 &nbsp;
     // Enhanced connection options
-    const connectionOptions = {
+    const connectionOptions = <span class="cstat-no" title="statement not covered" >{</span>
       // useNewUrlParser: true,
       // useUnifiedTopology: true,
       serverSelectionTimeoutMS: 5000,
@@ -214,20 +214,20 @@ const connectDB = async () =&gt; {
     };
 &nbsp;
     // In test environment, use shorter timeouts
-    <span class="missing-if-branch" title="else path not taken" >E</span>if (process.env.NODE_ENV === 'test') {
-      connectionOptions.serverSelectionTimeoutMS = 3000;
-      connectionOptions.socketTimeoutMS = 10000;
+<span class="cstat-no" title="statement not covered" >    if (process.env.NODE_ENV === 'test') {</span>
+<span class="cstat-no" title="statement not covered" >      connectionOptions.serverSelectionTimeoutMS = 3000;</span>
+<span class="cstat-no" title="statement not covered" >      connectionOptions.socketTimeoutMS = 10000;</span>
     }
 &nbsp;
-    console.log(colorful.info('\n🔌 Attempting to connect to MongoDB...'));
-    console.log(colorful.info('⏳ Please wait...\n'));
+<span class="cstat-no" title="statement not covered" >    console.log(colorful.info('\n🔌 Attempting to connect to MongoDB...'));</span>
+<span class="cstat-no" title="statement not covered" >    console.log(colorful.info('⏳ Please wait...\n'));</span>
     
-    await mongoose.connect(mongoURI, connectionOptions);
+<span class="cstat-no" title="statement not covered" >    await mongoose.connect(mongoURI, connectionOptions);</span>
     
-    console.log(colorful.success('┌──────────────────────────────────────────────┐'));
-    console.log(colorful.success('│ ✅  SUCCESS: Connected to MongoDB            │'));
-    console.log(colorful.success(`│ 🔗  Using: ${process.env.NODE_ENV === 'test' ? 'Test DB: SochetioChat DB' : <span class="branch-1 cbranch-no" title="branch not covered" >mongoURI.includes('localhost') ? 'Local DB: SochetioChat DB' : 'Production DB'.padEnd(28)}</span>│`));
-    console.log(colorful.success('└──────────────────────────────────────────────┘\n'));
+<span class="cstat-no" title="statement not covered" >    console.log(colorful.success('┌──────────────────────────────────────────────┐'));</span>
+<span class="cstat-no" title="statement not covered" >    console.log(colorful.success('│ ✅  SUCCESS: Connected to MongoDB            │'));</span>
+<span class="cstat-no" title="statement not covered" >    console.log(colorful.success(`│ 🔗  Using: ${process.env.NODE_ENV === 'test' ? 'Test DB: SochetioChat DB' : mongoURI.includes('localhost') ? 'Local DB: SochetioChat DB' : 'Production DB'.padEnd(28)}│`));</span>
+<span class="cstat-no" title="statement not covered" >    console.log(colorful.success('└──────────────────────────────────────────────┘\n'));</span>
   } catch (error) {
 <span class="cstat-no" title="statement not covered" >    console.log(colorful.error('\n┌──────────────────────────────────────────────┐'));</span>
 <span class="cstat-no" title="statement not covered" >    console.log(colorful.error('│ ❌  MONGODB CONNECTION ERROR                 │'));</span>
@@ -262,7 +262,7 @@ module.exports = dbUtils;</pre></td></tr></table></pre>
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-07-31T13:12:21.333Z
+                at 2025-07-31T14:54:42.526Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

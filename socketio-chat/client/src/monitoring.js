@@ -6,3 +6,5 @@ Sentry.init({
   integrations: [new Integrations.BrowserTracing()],
   tracesSampleRate: 1.0,
 });
+
+// For monitoring and Error Tracking

@@ -357,19 +357,26 @@ app.get('/', (req, res) => {
 });
 
 // MODIFIED: Socket.IO setup with production-ready config
-const io = new Server(server, {
-  cors: {
-    origin: allowedOrigins,
-    methods: ["GET", "POST"],
-    credentials: true
-  },
-  connectionStateRecovery: {
-    maxDisconnectionDuration: 2 * 60 * 1000,
-    skipMiddlewares: true
-  },
-  transports: ['websocket', 'polling'],
-  path: '/socket.io' // Explicit path for production
-});
+const io = process.env.NODE_ENV === 'test' 
+  ? new Server(server, {
+      cors: {
+        origin: "*",
+        methods: ["GET", "POST"]
+      }
+    })
+  : new Server(server, {
+      cors: {
+        origin: allowedOrigins,
+        methods: ["GET", "POST"],
+        credentials: true
+      },
+      connectionStateRecovery: {
+        maxDisconnectionDuration: 2 * 60 * 1000,
+        skipMiddlewares: true
+      },
+      transports: ['websocket', 'polling'],
+      path: '/socket.io'
+    });
 
 io.sockets.setMaxListeners(20);
 
@@ -1009,4 +1016,8 @@ if (process.env.NODE_ENV === 'test') {
   });
 }
 
-module.exports = { app, server, io };
+module.exports = { 
+   app,
+   server,
+   io 
+  };
