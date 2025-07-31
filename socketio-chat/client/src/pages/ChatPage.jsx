@@ -19,6 +19,10 @@ export default function ChatPage({ username, onLogout }) {
   const messagesContainerRef = useRef(null);
   const contextMenuRef = useRef(null);
   const readMessages = useRef(new Set());
+  const [deletionInProgress, setDeletionInProgress] = useState(false);
+  const { deleteMessage, deletionState } = useSocket();
+  const [showDeleteSuccess, setShowDeleteSuccess] = useState(false);
+  const [deletedMessageInfo, setDeletedMessageInfo] = useState(null);
 
   // Close context menu when clicking outside
   useEffect(() => {
@@ -32,6 +36,25 @@ export default function ChatPage({ username, onLogout }) {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [contextMenu]);
+
+
+  {deletionState.error && (
+  <div className="deletion-feedback error">
+    {deletionState.error}
+  </div>
+)}
+
+{deletionState.success && (
+  <div className="deletion-feedback success">
+    Message deleted successfully!
+  </div>
+)}
+
+{deletionState.inProgress && (
+  <div className="deletion-feedback progress">
+    Deleting message...
+  </div>
+)}
 
   useEffect(() => {
     if (!socket) return;
@@ -139,15 +162,23 @@ export default function ChatPage({ username, onLogout }) {
     });
   };
 
-  const handleDeleteMessage = (deleteForEveryone) => {
-    if (!contextMenu.messageId) return;
+  const handleDeleteMessage = (deleteForEveryone = false) => {
+    if (!contextMenu.messageId || deletionInProgress) return;
+    
+    setDeletionInProgress(true);
     
     socket.emit('deleteMessage', { 
-      messageId: contextMenu.messageId, 
-      deleteForEveryone 
+        messageId: contextMenu.messageId, 
+        deleteForEveryone 
+    }, (response) => {
+        setDeletionInProgress(false);
+        if (response?.error) {
+            alert(`Delete failed: ${response.error}`);
+        }
     });
+    
     setContextMenu({ ...contextMenu, visible: false });
-  };
+};
 
   const getFileIcon = (mimeType) => {
     if (mimeType.startsWith('image/')) return '🖼️';

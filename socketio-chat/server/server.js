@@ -802,67 +802,63 @@ socket.on('messageRead', async ({ messageId }) => {
 
   // Message deletion handler
  
-        socket.on('deleteMessage', async ({ messageId, deleteForEveryone }) => {
-            try {
-                const username = activeUsers.get(socket.id);
-                if (!username) {
-                    console.log(colorful.error('✗ Unauthenticated user tried to delete message'));
-                    return socket.emit('error', { message: 'Authentication required' });
-                }
-                
-                const message = await Message.findById(messageId);
-                if (!message) {
-                    console.log(colorful.error(`✗ Message ${messageId} not found`));
-                    return socket.emit('error', { message: 'Message not found' });
-                }
-                
-                // Check if user is the sender or has admin privileges
-                const canDeleteForEveryone = message.username === username || isAdmin(username);
-                
-                if (deleteForEveryone && !canDeleteForEveryone) {
-                    console.log(colorful.error(`✗ User ${username} tried to delete message for everyone without permission`));
-                    return socket.emit('error', { message: 'Not authorized for this action' });
-                }
-                
-                const room = await Room.findById(message.room);
-                if (!room) {
-                    console.log(colorful.error(`✗ Room not found for message ${messageId}`));
-                    return socket.emit('error', { message: 'Room not found' });
-                }
-                
-                if (deleteForEveryone) {
-                    // Delete for everyone - remove from database
-                    await Message.deleteOne({ _id: messageId });
-                    readReceipts.delete(messageId);
-                    console.log(colorful.success(`✓ Message ${messageId} deleted for everyone by ${username}`));
-                } else {
-                    // Delete for sender only - mark as deleted
-                    message.deletedFor = message.deletedFor || [];
-                    if (!message.deletedFor.includes(username)) {
-                        message.deletedFor.push(username);
-                        await message.save();
-                    }
-                    console.log(colorful.success(`✓ Message ${messageId} deleted for sender ${username}`));
-                }
-                
-                // Enhanced notification with more details
-                io.to(room.name).emit('messageDeleted', {
-                    messageId,
-                    deletedForEveryone,
-                    deletedBy: username,
-                    deletedFor: deleteForEveryone ? [] : message.deletedFor,
-                    timestamp: new Date()
-                });
-                
-            } catch (err) {
-                console.log(colorful.error(`✗ Message deletion error: ${err.message}`));
-                socket.emit('error', { 
-                    message: 'Failed to delete message',
-                    details: err.message 
-                });
+  socket.on('deleteMessage', async ({ messageId, deleteForEveryone }, callback) => {
+    try {
+        const username = activeUsers.get(socket.id);
+        if (!username) {
+            if (callback) callback({ error: 'Authentication required' });
+            return;
+        }
+        
+        const message = await Message.findById(messageId);
+        if (!message) {
+            if (callback) callback({ error: 'Message not found' });
+            return;
+        }
+        
+        const canDeleteForEveryone = message.username === username;
+        
+        if (deleteForEveryone && !canDeleteForEveryone) {
+            if (callback) callback({ error: 'Not authorized to delete for everyone' });
+            return;
+        }
+        
+        const room = await Room.findById(message.room);
+        if (!room) {
+            if (callback) callback({ error: 'Room not found' });
+            return;
+        }
+        
+        if (deleteForEveryone) {
+            await Message.deleteOne({ _id: messageId });
+            readReceipts.delete(messageId);
+        } else {
+            message.deletedFor = message.deletedFor || [];
+            if (!message.deletedFor.includes(username)) {
+                message.deletedFor.push(username);
+                await message.save();
             }
+        }
+        
+        io.to(room.name).emit('messageDeleted', {
+            messageId,
+            deletedForEveryone: deleteForEveryone || false,
+            deletedBy: username,
+            deletedFor: deleteForEveryone ? [] : message.deletedFor,
+            timestamp: new Date()
         });
-
+        
+        if (callback) callback({ success: true });
+        
+    } catch (err) {
+        console.error('Delete error:', err);
+        if (callback) callback({ error: 'Failed to delete message' });
+        socket.emit('error', { 
+            message: 'Failed to delete message',
+            details: err.message 
+        });
+    }
+});
   // Typing indicators
   socket.on('typing', ({ room }) => {
     const username = activeUsers.get(socket.id);
