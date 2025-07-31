@@ -315,3 +315,50 @@ Distributed under the MIT License. See LICENSE for more information.
 
 **✉️ Contact**
 Project Maintainer - j-captain
+
+
+**Explanation of server dev dependencies:**
+
+jest: Test runner
+jest-environment-node: Node environment for Jest
+socket.io-client: To test Socket.io connections
+supertest: For HTTP endpoint testing
+@sentry/node: Error tracking
+cross-env: For cross-platform environment variables
+
+
+**Explanation of client dev dependencies:**
+
+jest: Test runner
+@testing-library/*: React component testing utilities
+@sentry/browser: Client-side error tracking
+cypress: End-to-end testing
+jest-axe: Accessibility testing
+eslint-plugin-jsx-a11y: Accessibility linting
+
+
+**TESTING:SERVER**
+npm test
+
+**Run tests in watch mode (during development):**
+npm run test:watch
+
+**Generate coverage report:**
+npm run test:coverage
+
+
+**TESTING:CLIENT**
+**Run unit tests:**
+npm test
+
+
+**Run component tests:**
+npm test
+
+**Run end-to-end tests:**
+npm run e2e - For interactive mode
+npm run e2e:headless - For CI
+
+
+
+npm run start:test

@@ -1,0 +1,10 @@
+{
+  "name": "socketio-chat-root",
+  "private": true,
+  "scripts": {
+    "test": "npm run test --prefix server && npm run test --prefix client",
+    "test:coverage": "npm run test:coverage --prefix server && npm run test:coverage --prefix client",
+    "e2e": "npm run e2e --prefix client",
+    "start": "npm start --prefix server & npm start --prefix client"
+  }
+}
