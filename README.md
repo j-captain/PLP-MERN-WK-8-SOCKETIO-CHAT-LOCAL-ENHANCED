@@ -380,7 +380,9 @@ npm run test:watch
 npm run test:unit -- --verbose
 
 **Running the tests Independently**
-npm test AuthForm.test.jsx
+- npm test AuthForm.test.jsx
+- npm test Loading.test.jsx
+
 
 **Sometimes, port 5000 is in use due to conflict in development,testing ,production and deployment**
 

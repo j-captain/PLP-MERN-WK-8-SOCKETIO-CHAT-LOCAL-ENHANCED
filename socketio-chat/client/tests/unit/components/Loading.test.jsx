@@ -1,20 +1,39 @@
-import { render, screen, fireEvent } from '@testing-library/react';
-import LoginForm from '../../../src/components/LoginForm';
+import { render, screen } from '@testing-library/react';
+import Loading from '../../../src/components/Loading';
 
-test('submits credentials', () => {
-  const mockSubmit = jest.fn();
-  render(<LoginForm onSubmit={mockSubmit} />);
-  
-  fireEvent.change(screen.getByLabelText(/username/i), { 
-    target: { value: 'testuser' } 
+describe('Loading Component', () => {
+  test('renders default loading spinner and message', () => {
+    render(<Loading />);
+    
+    // Check for the spinner element
+    const spinner = screen.getByRole('status');
+    expect(spinner).toBeInTheDocument();
+    expect(spinner).toHaveClass('animate-spin');
+    
+    // Check for default visible message
+    expect(screen.getByText('Loading...', { selector: 'p' })).toBeInTheDocument();
+    
+    // Check for visually hidden text
+    expect(screen.getByText('Loading...', { selector: '.sr-only' })).toBeInTheDocument();
   });
-  fireEvent.change(screen.getByLabelText(/password/i), { 
-    target: { value: 'password123' } 
+
+  test('renders custom message when provided', () => {
+    const customMessage = 'Please wait...';
+    render(<Loading message={customMessage} />);
+    
+    // Check for custom visible message
+    expect(screen.getByText(customMessage, { selector: 'p' })).toBeInTheDocument();
+    // Should not show default visible message
+    expect(screen.queryByText('Loading...', { selector: 'p' })).not.toBeInTheDocument();
+    // Screen reader text should still be present
+    expect(screen.getByText('Loading...', { selector: '.sr-only' })).toBeInTheDocument();
   });
-  fireEvent.click(screen.getByText(/login/i));
-  
-  expect(mockSubmit).toHaveBeenCalledWith({
-    username: 'testuser',
-    password: 'password123'
+
+  test('has proper accessibility attributes', () => {
+    render(<Loading />);
+    
+    const spinner = screen.getByRole('status');
+    expect(spinner).toHaveAttribute('aria-live', 'polite');
+    expect(spinner).toHaveAttribute('aria-busy', 'true');
   });
 });
