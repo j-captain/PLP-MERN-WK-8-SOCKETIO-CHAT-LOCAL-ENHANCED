@@ -346,19 +346,43 @@ npm run test:watch
 **Generate coverage report:**
 npm run test:coverage
 
+**Run end-to-end tests:**
+npm run e2e - For interactive mode
+npm run e2e:headless - For CI
+
+**Initialize it with:**
+npx cypress open
+
+**Running the tests with more verbose output:**
+npm run test:coverage -- --verbose
+npm run test:debug
 
 **TESTING:CLIENT**
 **Run unit tests:**
-npm test
+npm run test:unit
 
+**Run intergration tests:**
+npm run test:integration
 
-**Run component tests:**
-npm test
+**Run Accessibility Tests:**
+npm run test:a11y
+
+**Run All Tests:**
+npm run test:all
 
 **Run end-to-end tests:**
 npm run e2e - For interactive mode
 npm run e2e:headless - For CI
 
+**Run tests in watch mode**
+npm run test:watch
 
+npm run test:unit -- --verbose
 
-npm run start:test
+**Running the tests Independently**
+npm test AuthForm.test.jsx
+
+**Sometimes, port 5000 is in use due to conflict in development,testing ,production and deployment**
+
+netstat -ano | findstr :5000
+taskkill /PID 'PID' /F
