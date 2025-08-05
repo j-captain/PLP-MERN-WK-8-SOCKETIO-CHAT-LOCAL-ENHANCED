@@ -1,10 +1,11 @@
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
-import AuthForm from '../../src/components/AuthForm'; 
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import AuthPage from '../../../src/pages/Authpage'; // Update this path if needed
+import AuthForm from '../../../src/components/AuthForm'; 
 import '@testing-library/jest-dom';
 
 // Mock the AuthForm component
-jest.mock('../../src/components/AuthForm', () => {
+jest.mock('../../../src/components/AuthForm', () => {
   return function MockAuthForm({ onAuth, error, setError }) {
     return (
       <div>

@@ -361,9 +361,6 @@ npm run test:debug
 **Run unit tests:**
 npm run test:unit
 
-**Run intergration tests:**
-npm run test:integration
-
 **Run Accessibility Tests:**
 npm run test:a11y
 
@@ -386,10 +383,71 @@ npm run test:unit -- --verbose
 - npm test OnlineUsers.test.jsx
 - npm run test RegisterForm.test.jsx
 - npm test MessageInput.test.jsx
+- npm test Authpage.test.jsx
+- npm test ChatPage.test.jsx
 
+
+**Running the tests sequentially: One after the other**
+npm test AuthForm.test.jsx && ^
+npm test Loading.test.jsx && ^
+npm test MessageList.test.jsx && ^
+npm test OnlineUsers.test.jsx && ^
+npm test RegisterForm.test.jsx && ^
+npm test MessageInput.test.jsx && ^
+npm test AuthPage.test.jsx && ^
+npm test ChatPage.test.jsx
+
+**Option Two":**
+npm test AuthForm.test.jsx Loading.test.jsx MessageList.test.jsx OnlineUsers.test.jsx RegisterForm.test.jsx MessageInput.test.jsx AuthPage.test.jsx ChatPage.test.jsx
+
+**Option Three:Windows Powershell Approach 1**
+npm test AuthForm.test.jsx; `
+npm test Loading.test.jsx; `
+npm test MessageList.test.jsx; `
+npm test OnlineUsers.test.jsx; `
+npm test RegisterForm.test.jsx; `
+npm test MessageInput.test.jsx; `
+npm test AuthPage.test.jsx; `
+npm test ChatPage.test.jsx
+
+**Changing Windows Powershell Execution Policy**
+Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
+
+**Reverting to default Windows Powershell Execution Policy**
+Set-ExecutionPolicy Restricted -Scope CurrentUser
+
+**Verify the Change**
+Get-ExecutionPolicy -List
+
+**Option Four:Windows Powershell Approach 2**
+**Run Without Changing Policy**
+& "C:\Program Files\nodejs\npm.cmd" test AuthForm.test.jsx
+& "C:\Program Files\nodejs\npm.cmd" test Loading.test.jsx
+& "C:\Program Files\nodejs\npm.cmd" test MessageList.test.jsx
+& "C:\Program Files\nodejs\npm.cmd" test OnlineUsers.test.jsx
+& "C:\Program Files\nodejs\npm.cmd" test RegisterForm.test.jsx
+& "C:\Program Files\nodejs\npm.cmd" test MessageInput.test.jsx
+& "C:\Program Files\nodejs\npm.cmd" test AuthPage.test.jsx
+& "C:\Program Files\nodejs\npm.cmd" test ChatPage.test.jsx
+
+
+**Option Five:Windows Powershell Approach 3**
+**Run All Tests in One Command**
+& "C:\Program Files\nodejs\npm.cmd" test AuthForm.test.jsx Loading.test.jsx MessageList.test.jsx OnlineUsers.test.jsx RegisterForm.test.jsx MessageInput.test.jsx AuthPage.test.jsx ChatPage.test.jsx
 
 
 **Sometimes, port 5000 is in use due to conflict in development,testing ,production and deployment**
 
 netstat -ano | findstr :5000
 taskkill /PID 'PID' /F
+
+**Verify your Jest configuration**
+npx jest --showConfig
+
+**Common useful commands:**
+npx jest --showConfig	Show full resolved config
+npx jest --listTests	List all test files Jest finds
+npx jest --clearCache	Clear Jest cache if having issues
+npx jest --coverage	Generate coverage report
+npx jest --watch	Watch mode for development
+
