@@ -382,6 +382,11 @@ npm run test:unit -- --verbose
 **Running the tests Independently**
 - npm test AuthForm.test.jsx
 - npm test Loading.test.jsx
+- npm test MessageList.test.jsx
+- npm test OnlineUsers.test.jsx
+- npm run test RegisterForm.test.jsx
+- npm test MessageInput.test.jsx
+
 
 
 **Sometimes, port 5000 is in use due to conflict in development,testing ,production and deployment**

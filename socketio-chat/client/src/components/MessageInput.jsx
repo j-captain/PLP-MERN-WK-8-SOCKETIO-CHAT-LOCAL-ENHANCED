@@ -1,6 +1,7 @@
 import { useRef } from 'react';
 import { useSocket } from '../context/SocketContext';
-import { FaPaperclip } from 'react-icons/fa';
+import { FaPaperclip, FaPaperPlane } from 'react-icons/fa';
+
 const MessageInput = ({ currentRoom }) => {
   const socket = useSocket();
   const messageInputRef = useRef();
@@ -73,14 +74,16 @@ const MessageInput = ({ currentRoom }) => {
           onClick={() => fileInputRef.current.click()}
           className="p-2 text-gray-500 hover:text-gray-700"
           title="Attach file"
+          data-testid="attach-button"
         >
-          <PaperClip size={20} />
+          <FaPaperclip size={20} />
           <input
             type="file"
             ref={fileInputRef}
             onChange={handleFileUpload}
             className="hidden"
             accept="image/*,.pdf,.doc,.docx,.txt"
+            data-testid="file-input"
           />
         </button>
         
@@ -91,14 +94,16 @@ const MessageInput = ({ currentRoom }) => {
           onKeyPress={handleKeyPress}
           className="flex-1 border rounded-lg p-2 mx-2"
           placeholder="Type a message..."
+          data-testid="message-input"
         />
         
         <button 
           onClick={sendMessage}
           className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
           title="Send message"
+          data-testid="send-button"
         >
-          <Send size={20} />
+          <FaPaperPlane size={20} />
         </button>
       </div>
     </div>

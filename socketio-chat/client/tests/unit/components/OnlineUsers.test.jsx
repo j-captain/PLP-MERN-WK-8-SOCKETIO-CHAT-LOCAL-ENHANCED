@@ -1,8 +1,8 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import OnlineUsers from '../../../src/components/OnlineUsers';
 import { useSocket } from '../../../src/context/SocketContext';
 
-jest.mock('../context/SocketContext');
+jest.mock('../../../src/context/SocketContext');
 
 describe('OnlineUsers', () => {
   const mockOnSelect = jest.fn();
