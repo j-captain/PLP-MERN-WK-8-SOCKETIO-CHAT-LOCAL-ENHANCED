@@ -129,7 +129,8 @@ server/
 │   └── Room.js          # Chat room model
 ├── socket/
 │   ├── auth.js          # Socket authentication
-│   └── chat.js          # Socket event handlers
+│-  └── chat.js          # Socket event handlers
+|----tests
 ├── utils/
 ├── server.js            # Main server file
 └── package.json
@@ -144,6 +145,7 @@ client/
 │   │   ├── MessageInput.jsx
 │   │   ├── MessageList.jsx
 │   │   └── OnlineUsers.jsx
+|   |---tests
 │   ├── context/
 │   │   └── SocketContext.jsx
 │   ├── hooks/
@@ -185,66 +187,6 @@ client/
 - `start_private_chat` - Start a private chat
 - `mark_as_read` - Mark a message as read
 - `typing` - Notify when user is typing
-
-## Dependencies List
-
-### Backend Dependencies
-```
-"dependencies": {
-  "express": "^4.18.2",
-  "socket.io": "^4.7.2",
-  "mongoose": "^8.0.3",
-  "cors": "^2.8.5",
-  "dotenv": "^16.3.1",
-  "jsonwebtoken": "^9.0.2",
-  "bcryptjs": "^2.4.3",
-  "multer": "^1.4.5-lts.1",
-  "path": "^0.12.7"
-},
-"devDependencies": {
-  "nodemon": "^3.0.2"
-}
-```
-
-### Frontend Dependencies
-```
-"dependencies": {
-  "react": "^18.2.0",
-  "react-dom": "^18.2.0",
-  "socket.io-client": "^4.7.2",
-  "react-router-dom": "^6.18.0",
-  "react-icons": "^4.10.1",
-  "jwt-decode": "^3.1.2",
-  "react-feather": "^2.0.10"
-},
-"devDependencies": {
-  "@types/react": "^18.2.45",
-  "@types/react-dom": "^18.2.18",
-  "@vitejs/plugin-react": "^4.2.1",
-  "autoprefixer": "^10.4.16",
-  "postcss": "^8.4.31",
-  "tailwindcss": "^3.3.5",
-  "@tailwindcss/forms": "^0.5.6",
-  "@tailwindcss/typography": "^0.5.9",
-  "vite": "^5.0.8"
-}
-```
-
-## Deployment
-
-### Backend
-Deploy to services like:
-- Render
-- Railway
-- Heroku
-- AWS EC2
-
-### Frontend
-Deploy to:
-- Vercel
-- Netlify
-- GitHub Pages
-- Firebase Hosting
 
 ## Troubleshooting
 

@@ -129,7 +129,8 @@ server/
 │   └── Room.js          # Chat room model
 ├── socket/
 │   ├── auth.js          # Socket authentication
-│   └── chat.js          # Socket event handlers
+│-  └── chat.js          # Socket event handlers
+|----tests
 ├── utils/
 ├── server.js            # Main server file
 └── package.json
@@ -144,6 +145,7 @@ client/
 │   │   ├── MessageInput.jsx
 │   │   ├── MessageList.jsx
 │   │   └── OnlineUsers.jsx
+|   |---tests
 │   ├── context/
 │   │   └── SocketContext.jsx
 │   ├── hooks/
@@ -185,66 +187,6 @@ client/
 - `start_private_chat` - Start a private chat
 - `mark_as_read` - Mark a message as read
 - `typing` - Notify when user is typing
-
-## Dependencies List
-
-### Backend Dependencies
-```
-"dependencies": {
-  "express": "^4.18.2",
-  "socket.io": "^4.7.2",
-  "mongoose": "^8.0.3",
-  "cors": "^2.8.5",
-  "dotenv": "^16.3.1",
-  "jsonwebtoken": "^9.0.2",
-  "bcryptjs": "^2.4.3",
-  "multer": "^1.4.5-lts.1",
-  "path": "^0.12.7"
-},
-"devDependencies": {
-  "nodemon": "^3.0.2"
-}
-```
-
-### Frontend Dependencies
-```
-"dependencies": {
-  "react": "^18.2.0",
-  "react-dom": "^18.2.0",
-  "socket.io-client": "^4.7.2",
-  "react-router-dom": "^6.18.0",
-  "react-icons": "^4.10.1",
-  "jwt-decode": "^3.1.2",
-  "react-feather": "^2.0.10"
-},
-"devDependencies": {
-  "@types/react": "^18.2.45",
-  "@types/react-dom": "^18.2.18",
-  "@vitejs/plugin-react": "^4.2.1",
-  "autoprefixer": "^10.4.16",
-  "postcss": "^8.4.31",
-  "tailwindcss": "^3.3.5",
-  "@tailwindcss/forms": "^0.5.6",
-  "@tailwindcss/typography": "^0.5.9",
-  "vite": "^5.0.8"
-}
-```
-
-## Deployment
-
-### Backend
-Deploy to services like:
-- Render
-- Railway
-- Heroku
-- AWS EC2
-
-### Frontend
-Deploy to:
-- Vercel
-- Netlify
-- GitHub Pages
-- Firebase Hosting
 
 ## Troubleshooting
 
@@ -326,6 +268,7 @@ supertest: For HTTP endpoint testing
 @sentry/node: Error tracking
 cross-env: For cross-platform environment variables
 
+
 **Explanation of client dev dependencies:**
 
 jest: Test runner
@@ -345,84 +288,108 @@ npm run test:watch
 **Generate coverage report:**
 npm run test:coverage
 
+**Run end-to-end tests:**
+npm run e2e - For interactive mode
+npm run e2e:headless - For CI
+
+**Initialize it with:**
+npx cypress open
+
+**Running the tests with more verbose output:**
+npm run test:coverage -- --verbose
+npm run test:debug
 
 **TESTING:CLIENT**
 **Run unit tests:**
-npm test
+npm run test:unit
 
+**Run Accessibility Tests:**
+npm run test:a11y
 
-**Run component tests:**
-npm test
+**Run All Tests:**
+npm run test:all
 
 **Run end-to-end tests:**
 npm run e2e - For interactive mode
 npm run e2e:headless - For CI
 
+**Run tests in watch mode**
+npm run test:watch
 
-**Running All Tests Together**
-Created a root-level package.json in socketio-chat-app/:
+npm run test:unit -- --verbose
 
-{
-  "name": "socketio-chat-app-root",
-  "private": true,
-  "scripts": {
-    "test": "npm run test --prefix server && npm run test --prefix client",
-    "test:coverage": "npm run test:coverage --prefix server && npm run test:coverage --prefix client",
-    "e2e": "npm run e2e --prefix client",
-    "start": "npm start --prefix server & npm start --prefix client"
-  }
-}
-
-
-Now from the root folder you can:
-
-Run all tests: npm test
-Run all tests with coverage: npm run test:coverage
-Start both servers: npm start
-
-**Test Execution Order**
-First: Run server unit tests
-
-Tests for utility functions, middleware, and business logic
-Fastest tests, should run first
-
-Second: Run server integration tests
-Tests for Socket.io events and HTTP endpoints
-Requires server to be running (use start:test script)
-
-Third: Run client unit tests
-Tests for React components and client-side logic
-
-Fourth: Run client integration tests
-Tests for component interactions
-
-Finally: Run end-to-end tests
-Full user flow tests with Cypress
-
-Requires both client and server to be running
-
-**Viewing Test Results**
-Jest tests: Shows output in terminal
-Coverage reports:HTML reports generated in coverage/ folder
-
-Open coverage/lcov-report/index.html in browser
-
-Cypress tests: Interactive runner or terminal output
-
-**Common Issues and Solutions**
-Socket.io connection errors in tests:
-
-Make sure test server is running (npm run start:test)
-Add small delays before tests to allow connection
-React testing library warnings:
-
-Make sure to cleanup() after tests
-Use await for async operations
-Cypress timeouts:
-Increase default command timeout in cypress.json
+**Running the tests Independently**
+- npm test AuthForm.test.jsx
+- npm test Loading.test.jsx
+- npm test MessageList.test.jsx
+- npm test OnlineUsers.test.jsx
+- npm run test RegisterForm.test.jsx
+- npm test MessageInput.test.jsx
+- npm test Authpage.test.jsx
+- npm test ChatPage.test.jsx
 
 
-json
-{
-  "defaultCommandTimeout": 10000
-}
+**Running the tests sequentially: One after the other**
+npm test AuthForm.test.jsx && ^
+npm test Loading.test.jsx && ^
+npm test MessageList.test.jsx && ^
+npm test OnlineUsers.test.jsx && ^
+npm test RegisterForm.test.jsx && ^
+npm test MessageInput.test.jsx && ^
+npm test AuthPage.test.jsx && ^
+npm test ChatPage.test.jsx
+
+**Option Two":**
+npm test AuthForm.test.jsx Loading.test.jsx MessageList.test.jsx OnlineUsers.test.jsx RegisterForm.test.jsx MessageInput.test.jsx AuthPage.test.jsx ChatPage.test.jsx
+
+**Option Three:Windows Powershell Approach 1**
+npm test AuthForm.test.jsx; `
+npm test Loading.test.jsx; `
+npm test MessageList.test.jsx; `
+npm test OnlineUsers.test.jsx; `
+npm test RegisterForm.test.jsx; `
+npm test MessageInput.test.jsx; `
+npm test AuthPage.test.jsx; `
+npm test ChatPage.test.jsx
+
+**Changing Windows Powershell Execution Policy**
+Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
+
+**Reverting to default Windows Powershell Execution Policy**
+Set-ExecutionPolicy Restricted -Scope CurrentUser
+
+**Verify the Change**
+Get-ExecutionPolicy -List
+
+**Option Four:Windows Powershell Approach 2**
+**Run Without Changing Policy**
+& "C:\Program Files\nodejs\npm.cmd" test AuthForm.test.jsx
+& "C:\Program Files\nodejs\npm.cmd" test Loading.test.jsx
+& "C:\Program Files\nodejs\npm.cmd" test MessageList.test.jsx
+& "C:\Program Files\nodejs\npm.cmd" test OnlineUsers.test.jsx
+& "C:\Program Files\nodejs\npm.cmd" test RegisterForm.test.jsx
+& "C:\Program Files\nodejs\npm.cmd" test MessageInput.test.jsx
+& "C:\Program Files\nodejs\npm.cmd" test AuthPage.test.jsx
+& "C:\Program Files\nodejs\npm.cmd" test ChatPage.test.jsx
+
+
+**Option Five:Windows Powershell Approach 3**
+**Run All Tests in One Command**
+& "C:\Program Files\nodejs\npm.cmd" test AuthForm.test.jsx Loading.test.jsx MessageList.test.jsx OnlineUsers.test.jsx RegisterForm.test.jsx MessageInput.test.jsx AuthPage.test.jsx ChatPage.test.jsx
+
+
+**Sometimes, port 5000 is in use due to conflict in development,testing ,production and deployment**
+
+netstat -ano | findstr :5000
+taskkill /PID 'PID' /F
+
+**Verify your Jest configuration**
+npx jest --showConfig
+
+**Common useful commands:**
+npx jest --showConfig	Show full resolved config
+npx jest --listTests	List all test files Jest finds
+npx jest --clearCache	Clear Jest cache if having issues
+npx jest --coverage	Generate coverage report
+npx jest --watch	Watch mode for development
+
