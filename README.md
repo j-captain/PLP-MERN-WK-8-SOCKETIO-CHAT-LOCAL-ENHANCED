@@ -145,7 +145,7 @@ client/
 │   │   ├── MessageInput.jsx
 │   │   ├── MessageList.jsx
 │   │   └── OnlineUsers.jsx
-|   |---tests
+|   |---test
 │   ├── context/
 │   │   └── SocketContext.jsx
 │   ├── hooks/
